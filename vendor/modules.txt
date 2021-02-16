@@ -1,0 +1,48 @@
+# github.com/BurntSushi/toml v0.3.1
+## explicit
+github.com/BurntSushi/toml
+# github.com/cenkalti/backoff v2.2.1+incompatible
+## explicit
+github.com/cenkalti/backoff
+# github.com/google/go-github/v33 v33.0.0
+## explicit
+github.com/google/go-github/v33/github
+# github.com/google/go-querystring v1.0.0
+github.com/google/go-querystring/query
+# github.com/itchyny/astgen-go v0.0.0-20210113000433-0da0671862a3
+github.com/itchyny/astgen-go
+# github.com/itchyny/gojq v0.12.1
+## explicit
+github.com/itchyny/gojq
+# github.com/itchyny/timefmt-go v0.1.1
+github.com/itchyny/timefmt-go
+# github.com/pkg/errors v0.9.1
+## explicit
+# github.com/spf13/pflag v1.0.5
+## explicit
+github.com/spf13/pflag
+# github.com/thecodeteam/goodbye v0.0.0-20170927022442-a83968bda2d3
+## explicit
+github.com/thecodeteam/goodbye
+# go.uber.org/atomic v1.6.0
+go.uber.org/atomic
+# go.uber.org/multierr v1.5.0
+go.uber.org/multierr
+# go.uber.org/zap v1.16.0
+## explicit
+go.uber.org/zap
+go.uber.org/zap/buffer
+go.uber.org/zap/internal/bufferpool
+go.uber.org/zap/internal/color
+go.uber.org/zap/internal/exit
+go.uber.org/zap/zapcore
+# golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+golang.org/x/crypto/cast5
+golang.org/x/crypto/openpgp
+golang.org/x/crypto/openpgp/armor
+golang.org/x/crypto/openpgp/elgamal
+golang.org/x/crypto/openpgp/errors
+golang.org/x/crypto/openpgp/packet
+golang.org/x/crypto/openpgp/s2k
+# golang.org/x/tools v0.0.0-20210106214847-113979e3529a
+## explicit
