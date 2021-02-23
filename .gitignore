@@ -1,0 +1,8 @@
+goordinator
+main
+rules.toml
+
+*~
+*.swp
+*.swo
+*.orig
