@@ -1,6 +1,12 @@
 [[rule]]
+  # identifier of the rule
   name = "trigger-ci-jobs"
+  # for which event source the rule applies, currently only "github" is
+  # supported
   event_source = "github"
+  # a JSON query (JQ) string that runs on the JSON representation of the event.
+  # The result must be a single boolean value. If it's true the actions of the
+  # rule are executed.
   filter_query = '''
 .repository.name == "testrepo" and (
   .action == "synchronize" and ([.pull_request.labels[].name] | map(select(. == "ci")) | length) > 0
@@ -9,20 +15,41 @@
 )
 '''
 
-# All actions are executed in parallel and retried on errors
+# Actions that are executed when the event_source and filter_query matches an
+# event. All actions are run in parallel.
+# They are retried until a timeout expires when their execution fails.
+# All fields can contain template strings that are replaced with concrete
+# information from the event.
+# The following template strings are supported:
+# - `{{ .EVENT.PullRequestNr }}`
+# - `{{ .EVENT.PullRequestName }}`
+# - `{{ .EVENT.Branch }}`
+# - `{{ .EVENT.CommitID }}`
+# - `{{ .EVENT.Repository }}`
+# - `{{ .EVENT.EventType }}`
+# - `{{ .EVENT.DeliveryID }}`
+# - `{{ .EVENT.Provider }}`
   [[rule.action]]
+    # action type, only "httprequest" is supported
     action = "httprequest"
-    url = "https://myjenkins/view/CI/job/checks/view/change-requests/job/PR-{{ .Event.PullRequestNr }}/build"
-    user = "fho"
-    password = "<token>"
-
-  [[rule.action]]
-    action = "httprequest"
+    # url to that the httprequest is send
     url = "https://circleci.com/api/v2/project/gh/goordinator/checks/pipeline"
+    # http basic auth user
     user = "<token">
+    # http basic auth password
+    password = ""
+    # http headers as a map
     headers = { "content-type" = "application/json" }
+    # http request data
     data = '''
     {
       "branch": "pull/14380/head"
     }
     '''
+
+  [[rule.action]]
+    # action type, currently only "httprequest" is supported
+    action = "httprequest"
+    url = "https://myjenkins/view/CI/job/checks/view/change-requests/job/PR-{{ .Event.PullRequestNr }}/build"
+    user = "fho"
+    password = "<token>"

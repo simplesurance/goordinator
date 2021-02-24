@@ -132,8 +132,7 @@ func mustParseCommandlineParams() {
 
 func mustInitLogger() {
 	var err error
-	//	logger, err = zap.NewDevelopment()
-	logger, err = zap.NewProduction()
+
 	cfg := zap.NewProductionConfig()
 	cfg.Sampling = nil
 	cfg.EncoderConfig.LevelKey = "loglevel"
