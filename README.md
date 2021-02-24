@@ -26,7 +26,8 @@ Goordinator is configured via a `rules.toml` file and commandline parameters.
 
 ### Rules Configuration File
 
-A documented example configuration file can be found [rules.example.toml](here).
+A documented example configuration file can be found in the repository:
+[rules.example.toml](rules.example.toml).
 
 ### Commandline Parameters
 
