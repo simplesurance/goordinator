@@ -159,10 +159,10 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, acti
 		ticker := backoff.NewTicker(bo)
 		defer ticker.Stop()
 
-		// TODO: add logfields() method to actions?
 		logger := e.logger.With(append(
 			event.LogFields,
-			zap.String("action", action.String()))...)
+			action.LogFields()...,
+		)...)
 
 		for {
 			select {

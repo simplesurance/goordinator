@@ -23,6 +23,8 @@ func (h *Runner) String() string {
 // Run sends the http request.
 // It returns an ErrorHTTPRequest if request related error happens.
 func (h *Runner) Run(ctx context.Context) error {
+	logger := h.logger.With(h.LogFields()...)
+
 	req, err := http.NewRequestWithContext(ctx, h.method, h.url, nil)
 	if err != nil {
 		return err
@@ -46,11 +48,9 @@ func (h *Runner) Run(ctx context.Context) error {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		h.logger.Warn(
+		logger.Warn(
 			"reading http response body failed",
 			logfields.Event("http_post_reading_response_body_failed"),
-			zap.String("http_url", h.url),
-			zap.String("http_method", h.method),
 			zap.Int("http_response_code", resp.StatusCode),
 		)
 	}
@@ -62,10 +62,20 @@ func (h *Runner) Run(ctx context.Context) error {
 		}
 	}
 
-	h.logger.Debug(
+	logger.Debug(
 		fmt.Sprintf("http response: %s", string(body)),
 		logfields.Event("http_post_request_sent"),
 	)
 
 	return nil
+}
+
+// LogFields returns fields that should be used when logging messages related
+// to the action.
+func (h *Runner) LogFields() []zap.Field {
+	return []zap.Field{
+		zap.String("action", "httprequest"),
+		zap.String("http_url", h.url),
+		zap.String("http_method", h.method),
+	}
 }
