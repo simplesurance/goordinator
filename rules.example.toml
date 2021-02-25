@@ -36,7 +36,7 @@
     # url to that the httprequest is send
     url = "https://circleci.com/api/v2/project/gh/goordinator/checks/pipeline"
     # http basic auth user
-    user = "<token">
+    user = "<token>"
     # http basic auth password
     password = ""
     # http headers as a map
