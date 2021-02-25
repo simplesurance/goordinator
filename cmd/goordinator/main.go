@@ -125,7 +125,7 @@ func mustParseCommandlineParams() {
 			"github webhook secret\n(https://docs.github.com/en/developers/webhooks-and-events/creating-webhooks#secret)",
 		),
 		GithubHTTPEndpoint: pflag.String("gh-webhook-endpoint",
-			github.DefaultEndpoint,
+			"listener/github",
 			"set the http endpoint that receives github webhook events",
 		),
 		LogFormat: pflag.String("log-format",
@@ -233,11 +233,15 @@ func main() {
 	gh := github.New(
 		evLoop.C(),
 		github.WithPayloadSecret(*args.GithubWebhookSecret),
-		github.WithCustomEndpoint(*args.GithubHTTPEndpoint),
 	)
 
 	mux := http.NewServeMux()
-	gh.RegisterHTTPHandler(mux)
+	mux.HandleFunc(*args.GithubHTTPEndpoint, gh.HttpHandler)
+	logger.Debug(
+		"registered github webhook event handler",
+		logfields.Event("github_http_handler_registered"),
+		zap.String("endpoint", *args.GithubHTTPEndpoint),
+	)
 	startHttpServer(*args.HTTPListenAddr, mux)
 
 	goodbye.Register(func(context.Context, os.Signal) {

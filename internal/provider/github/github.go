@@ -10,14 +10,12 @@ import (
 	"go.uber.org/zap"
 )
 
-const DefaultEndpoint = "/listener/github"
 const loggerName = "github-event-provider"
 
 // Provider listens for github-webhook http-requests at a http-server handler,
 // validates and converts the requests to an Events and forwards it to an event
 // channel.
 type Provider struct {
-	endpoint      string
 	logging       *zap.Logger
 	webhookSecret []byte
 	c             chan<- *provider.Event
@@ -28,14 +26,6 @@ type option func(*Provider)
 func WithPayloadSecret(secret string) option {
 	return func(p *Provider) {
 		p.webhookSecret = []byte(secret)
-	}
-}
-
-// WithCustomEndpoint is an option that can be passed to new to specify the
-// http handler pattern.
-func WithCustomEndpoint(endpoint string) option {
-	return func(p *Provider) {
-		p.endpoint = endpoint
 	}
 }
 
@@ -50,10 +40,6 @@ func New(eventChan chan<- *provider.Event, opts ...option) *Provider {
 
 	if p.logging == nil {
 		p.logging = zap.L().Named(loggerName)
-	}
-
-	if p.endpoint == "" {
-		p.endpoint = DefaultEndpoint
 	}
 
 	return &p
@@ -166,14 +152,4 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "queue full", http.StatusServiceUnavailable)
 		return
 	}
-}
-
-func (p *Provider) RegisterHTTPHandler(mux *http.ServeMux) {
-	mux.HandleFunc(p.endpoint, p.HttpHandler)
-
-	p.logging.Debug(
-		"registered github webhook event handler",
-		logfields.Event("github_http_handler_registered"),
-		zap.String("endpoint", p.endpoint),
-	)
 }
