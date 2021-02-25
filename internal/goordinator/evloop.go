@@ -3,7 +3,6 @@ package goordinator
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -90,8 +89,17 @@ func (e *EvLoop) Start() {
 				break
 			case EventSourceMismatch, RuleMismatch:
 				continue
+			case MatchResultUndefined:
+				logger.Error(
+					"match returned invalid result",
+					logfields.Event("rule_match_invalid_result"),
+					zap.String("match_result", match.String()),
+				)
 			default:
-				panic(fmt.Sprintf("Match returned unsupported value %d and no error", match))
+				logger.Panic(
+					"match returned undefined MatchResult enum value",
+					zap.Int("match_result_int", int(match)),
+				)
 			}
 
 			actions, err := rule.TemplateActions(ctx, ev)
