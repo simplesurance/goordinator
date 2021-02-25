@@ -230,15 +230,15 @@ func main() {
 
 	evLoop := goordinator.NewEventLoop(rules)
 
-	mux := http.NewServeMux()
-	startHttpServer(*args.HTTPListenAddr, mux)
-
 	gh := github.New(
 		evLoop.C(),
 		github.WithPayloadSecret(*args.GithubWebhookSecret),
 		github.WithCustomEndpoint(*args.GithubHTTPEndpoint),
 	)
+
+	mux := http.NewServeMux()
 	gh.RegisterHTTPHandler(mux)
+	startHttpServer(*args.HTTPListenAddr, mux)
 
 	goodbye.Register(func(context.Context, os.Signal) {
 		logger.Debug(
