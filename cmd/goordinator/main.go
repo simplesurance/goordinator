@@ -20,6 +20,8 @@ import (
 
 const appName = "goordinator"
 
+var logger *zap.Logger
+
 func exitOnErr(msg string, err error) {
 	if err == nil {
 		return
@@ -29,7 +31,21 @@ func exitOnErr(msg string, err error) {
 	os.Exit(1)
 }
 
-var logger *zap.Logger
+func panicHandler() {
+	if r := recover(); r != nil {
+		logger.Info(
+			"panic caught , terminating gracefully",
+			zap.String("panic", fmt.Sprintf("%v", r)),
+			zap.StackSkip("stacktrace", 1),
+		)
+
+		ctx, cancelFn := context.WithTimeout(context.Background(), time.Minute)
+		defer cancelFn()
+
+		goodbye.Exit(ctx, 1)
+
+	}
+}
 
 func startHttpServer(listenAddr string, mux *http.ServeMux) {
 	httpServer := http.Server{
@@ -38,7 +54,7 @@ func startHttpServer(listenAddr string, mux *http.ServeMux) {
 	}
 
 	goodbye.Register(func(context.Context, os.Signal) {
-		const shutdownTimeout = time.Minute
+		const shutdownTimeout = 30 * time.Second
 		ctx, cancelFn := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancelFn()
 
@@ -59,6 +75,8 @@ func startHttpServer(listenAddr string, mux *http.ServeMux) {
 	})
 
 	go func() {
+		defer panicHandler()
+
 		logger.Info(
 			"http server started",
 			logfields.Event("http_server_started"),
