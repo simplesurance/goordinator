@@ -154,7 +154,7 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, acti
 
 		bo := backoff.NewExponentialBackOff()
 		bo.InitialInterval = 5 * time.Second
-		bo.MaxElapsedTime = 2 * time.Hour
+		bo.MaxElapsedTime = DefRetryTimeout
 
 		ticker := backoff.NewTicker(bo)
 		defer ticker.Stop()
