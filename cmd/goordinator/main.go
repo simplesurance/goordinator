@@ -37,26 +37,6 @@ func startHttpServer(listenAddr string, mux *http.ServeMux) {
 		Handler: mux,
 	}
 
-	go func() {
-		logger.Info(
-			"http server started",
-			logfields.Event("http_server_started"),
-			zap.String("listenAddr", listenAddr),
-		)
-
-		err := httpServer.ListenAndServe()
-		if errors.Is(err, http.ErrServerClosed) {
-			logger.Info("http server terminated", logfields.Event("http_server_terminated"))
-			return
-		}
-
-		logger.Fatal(
-			"http server terminated unexpectedly",
-			logfields.Event("http_server_terminated_unexpectedly"),
-			zap.Error(err),
-		)
-	}()
-
 	goodbye.Register(func(context.Context, os.Signal) {
 		const shutdownTimeout = time.Minute
 		ctx, cancelFn := context.WithTimeout(context.Background(), shutdownTimeout)
@@ -77,6 +57,26 @@ func startHttpServer(listenAddr string, mux *http.ServeMux) {
 			)
 		}
 	})
+
+	go func() {
+		logger.Info(
+			"http server started",
+			logfields.Event("http_server_started"),
+			zap.String("listenAddr", listenAddr),
+		)
+
+		err := httpServer.ListenAndServe()
+		if errors.Is(err, http.ErrServerClosed) {
+			logger.Info("http server terminated", logfields.Event("http_server_terminated"))
+			return
+		}
+
+		logger.Fatal(
+			"http server terminated unexpectedly",
+			logfields.Event("http_server_terminated_unexpectedly"),
+			zap.Error(err),
+		)
+	}()
 }
 
 type arguments struct {
