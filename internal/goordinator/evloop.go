@@ -146,11 +146,11 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, acti
 	go func() {
 		var retryCount uint
 
-		defer e.actionWg.Done()
-
 		if e.actionDeferFn != nil {
 			defer e.actionDeferFn()
 		}
+
+		defer e.actionWg.Done()
 
 		bo := backoff.NewExponentialBackOff()
 		bo.InitialInterval = 5 * time.Second
