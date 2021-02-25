@@ -47,7 +47,7 @@ func (h *Runner) Run(ctx context.Context) error {
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		h.logger.Warn(
-			"",
+			"reading http response body failed",
 			logfields.Event("http_post_reading_response_body_failed"),
 			zap.String("http_url", h.url),
 			zap.String("http_method", h.method),
