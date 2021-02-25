@@ -214,6 +214,7 @@ func mustParseRulesCfg() goordinator.Rules {
 }
 
 func main() {
+	defer panicHandler()
 
 	mustParseCommandlineParams()
 
