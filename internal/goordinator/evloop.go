@@ -27,8 +27,20 @@ type EvLoop struct {
 	logger *zap.Logger
 	rules  []*Rule
 
-	actionWg     sync.WaitGroup
-	shutdownChan chan struct{}
+	actionWg      sync.WaitGroup
+	shutdownChan  chan struct{}
+	actionDeferFn func()
+}
+
+// WithActionRoutineDeferFunc sets a function to be run when an go-routine that
+// executes an action returns.
+// It can be used to set a panic handler.
+// Because it does not pass any arguments, there is probably no other good
+// usecase for it. :-)
+func WithActionRoutineDeferFunc(fn func()) func(*EvLoop) {
+	return func(e *EvLoop) {
+		e.actionDeferFn = fn
+	}
 }
 
 func NewEventLoop(rules []*Rule, opts ...func(*EvLoop)) *EvLoop {
@@ -135,6 +147,10 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, acti
 		var retryCount uint
 
 		defer e.actionWg.Done()
+
+		if e.actionDeferFn != nil {
+			defer e.actionDeferFn()
+		}
 
 		bo := backoff.NewExponentialBackOff()
 		bo.InitialInterval = 5 * time.Second

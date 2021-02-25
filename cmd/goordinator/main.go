@@ -229,7 +229,10 @@ func main() {
 
 	rules := mustParseRulesCfg()
 
-	evLoop := goordinator.NewEventLoop(rules)
+	evLoop := goordinator.NewEventLoop(
+		rules,
+		goordinator.WithActionRoutineDeferFunc(panicHandler),
+	)
 
 	gh := github.New(
 		evLoop.C(),
