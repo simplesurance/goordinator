@@ -1,5 +1,7 @@
 package goordinator
 
+import "fmt"
+
 // MatchResult represents the result matching a rule against an event.
 type MatchResult uint8
 
@@ -18,5 +20,10 @@ var matchResulString = [...]string{
 }
 
 func (m *MatchResult) String() string {
+	// it can not be <0 because it's type is uint8
+	if int(*m) > len(matchResulString)-1 {
+		return fmt.Sprintf("unsupported MatchResult value: %d", m)
+	}
+
 	return matchResulString[*m]
 }
