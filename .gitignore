@@ -1,8 +1,8 @@
-goordinator
-main
-rules.toml
+/goordinator
 
 *~
 *.swp
 *.swo
 *.orig
+
+release/

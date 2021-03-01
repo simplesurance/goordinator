@@ -1,0 +1,12 @@
+[Unit]
+Description=Goordinator
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/goordinator
+EnvironmentFile=/etc/conf.d/goordinator
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

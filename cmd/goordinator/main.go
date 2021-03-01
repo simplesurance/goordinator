@@ -3,16 +3,17 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/jamiealquiza/envy"
 	"github.com/simplesurance/goordinator/internal/cfg"
 	"github.com/simplesurance/goordinator/internal/goordinator"
 	"github.com/simplesurance/goordinator/internal/logfields"
 	"github.com/simplesurance/goordinator/internal/provider/github"
-	"github.com/spf13/pflag"
 	zaplogfmt "github.com/sykesm/zap-logfmt"
 	"github.com/thecodeteam/goodbye"
 	"go.uber.org/zap"
@@ -111,37 +112,38 @@ var args arguments
 
 func mustParseCommandlineParams() {
 	args = arguments{
-		Verbose: pflag.BoolP("verbose", "v", false, "enable verbose logging"),
-		HTTPListenAddr: pflag.StringP(
-			"http-listen-addr", "l",
+		Verbose: flag.Bool("verbose", false, "enable verbose logging"),
+		HTTPListenAddr: flag.String(
+			"http-listen-addr",
 			":8084",
 			"address where the http server listens for requests, the http server processes github webhook events",
 		),
-		RulesCfgFile: pflag.StringP("rules-file", "f",
+		RulesCfgFile: flag.String("rules-file",
 			"/etc/goordinator/rules.toml",
 			"path to the rules.toml configuration files",
 		),
-		GithubWebhookSecret: pflag.String("gh-webhook-secret",
+		GithubWebhookSecret: flag.String("gh-webhook-secret",
 			"",
 			"github webhook secret\n(https://docs.github.com/en/developers/webhooks-and-events/creating-webhooks#secret)",
 		),
-		GithubHTTPEndpoint: pflag.String("gh-webhook-endpoint",
+		GithubHTTPEndpoint: flag.String("gh-webhook-endpoint",
 			"/listener/github",
 			"set the http endpoint that receives github webhook events",
 		),
-		LogFormat: pflag.String("log-format",
+		LogFormat: flag.String("log-format",
 			"logfmt",
 			"define the format in that logs are printed, supported values: 'logfmt', 'json', 'plain'",
 		),
 	}
 
-	pflag.Usage = func() {
+	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTION]\nReceive GitHub webHook events and trigger actions.\n", appName)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		pflag.PrintDefaults()
+		flag.PrintDefaults()
 	}
 
-	pflag.Parse()
+	envy.Parse("GR")
+	flag.Parse()
 
 	if *args.LogFormat != "logfmt" && *args.LogFormat != "plain" && *args.LogFormat != "json" {
 		fmt.Fprintf(os.Stderr, "unsupported log-format argument: %q\n", *args.LogFormat)

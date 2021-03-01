@@ -9,27 +9,44 @@ As actions currently only posting HTTP-Requestes are supported.
 All actions are executed in parallel and retried if they fail until a retry
 timeout expired (default: 2h).
 
-## Installation
+## Installation as systemd Service
 
-Run:
+1. Download a release archive from: <https://github.com/simplesurance/goordinator/releases>.
+2. Extract the archive to a temporary directory.
+3. Install `goordinator` to `/usr/local/bin`:
 
-```sh
-make
-```
+   ```sh
+   install -o root -g root -m 775 goordinator /usr/local/bin/goordinator
+   ```
 
-and copy the `goordinator` binary to a place of your choice.
+4. Copy the configuration files to `/etc`:
 
+   ```sh
+   cp -r dist/etc/* /etc/
+   chmod 660 /etc/conf.d/goordinator /etc/goordinator/rules.toml
+   ```
+
+5. Adapt the configuration in `/etc/conf.d/goordinator` and define your rules in
+   `/etc/goordinator/rules.toml`.
+6. Enable the systemd service and start it:
+
+   ```sh
+   systemctl daemon-reload
+   systemctl enable goordinator
+   systemctl start goordinator`
+   ```
 
 ## Configuration
 
-Goordinator is configured via a `rules.toml` file and commandline parameters.
+Goordinator is configured via a `rules.toml` file and commandline parameters or
+environment variables .
 
 ### Rules Configuration File
 
 A documented example configuration file can be found in the repository:
 [rules.example.toml](rules.example.toml).
 
-### Commandline Parameters
+### Commandline Parameters / Environment Variables
 
 See the output of `goordinator --help`.
 
@@ -41,11 +58,6 @@ from the event that is processed.
 
 The supported template strings are documented in [rules.example.toml].
 
-### Logging
-
-Log messages are printed to STDOUT in JSON structured log format by default.
-The format can be changed to a slightly more readable format via the
-`--log-format` commandline parameter.
 
 ## FAQ
 
