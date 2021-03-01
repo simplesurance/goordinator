@@ -13,6 +13,7 @@ import (
 	"github.com/simplesurance/goordinator/internal/logfields"
 	"github.com/simplesurance/goordinator/internal/provider/github"
 	"github.com/spf13/pflag"
+	zaplogfmt "github.com/sykesm/zap-logfmt"
 	"github.com/thecodeteam/goodbye"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -125,12 +126,12 @@ func mustParseCommandlineParams() {
 			"github webhook secret\n(https://docs.github.com/en/developers/webhooks-and-events/creating-webhooks#secret)",
 		),
 		GithubHTTPEndpoint: pflag.String("gh-webhook-endpoint",
-			"listener/github",
+			"/listener/github",
 			"set the http endpoint that receives github webhook events",
 		),
 		LogFormat: pflag.String("log-format",
-			"json",
-			"define the format in that logs are printed, supported values: 'json', 'plain'",
+			"logfmt",
+			"define the format in that logs are printed, supported values: 'logfmt', 'json', 'plain'",
 		),
 	}
 
@@ -142,20 +143,46 @@ func mustParseCommandlineParams() {
 
 	pflag.Parse()
 
-	if *args.LogFormat != "plain" && *args.LogFormat != "json" {
+	if *args.LogFormat != "logfmt" && *args.LogFormat != "plain" && *args.LogFormat != "json" {
 		fmt.Fprintf(os.Stderr, "unsupported log-format argument: %q\n", *args.LogFormat)
 		os.Exit(2)
 	}
 }
 
-func mustInitLogger() {
-	var err error
+func initLogFmtLogger() *zap.Logger {
+	cfg := zapEncoderConfig()
+	lvl := zapcore.InfoLevel
 
+	if *args.Verbose {
+		lvl = zapcore.DebugLevel
+	}
+
+	logger := zap.New(zapcore.NewCore(
+		zaplogfmt.NewEncoder(cfg),
+		os.Stdout,
+		lvl),
+	)
+
+	zap.ReplaceGlobals(logger)
+	logger = logger.Named("main")
+
+	return logger
+}
+
+func zapEncoderConfig() zapcore.EncoderConfig {
+	cfg := zap.NewProductionEncoderConfig()
+
+	cfg.LevelKey = "loglevel"
+	cfg.TimeKey = "time_iso8601"
+	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	return cfg
+}
+
+func mustInitZapFormatLogger() *zap.Logger {
 	cfg := zap.NewProductionConfig()
 	cfg.Sampling = nil
-	cfg.EncoderConfig.LevelKey = "loglevel"
-	cfg.EncoderConfig.TimeKey = "time_iso8601"
-	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	cfg.EncoderConfig = zapEncoderConfig()
 	cfg.OutputPaths = []string{"stdout"}
 	cfg.Encoding = *args.LogFormat
 	if *args.LogFormat == "plain" {
@@ -166,11 +193,21 @@ func mustInitLogger() {
 		cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	}
 
-	logger, err = cfg.Build()
+	logger, err := cfg.Build()
 	exitOnErr("could not initialize logger", err)
 
-	zap.ReplaceGlobals(logger)
+	return logger
+}
+
+func mustInitLogger() {
+	if *args.LogFormat == "logfmt" {
+		logger = initLogFmtLogger()
+	} else {
+		logger = mustInitZapFormatLogger()
+	}
+
 	logger = logger.Named("main")
+	zap.ReplaceGlobals(logger)
 }
 
 func mustParseRulesCfg() goordinator.Rules {

@@ -21,6 +21,9 @@ github.com/itchyny/timefmt-go
 # github.com/spf13/pflag v1.0.5
 ## explicit
 github.com/spf13/pflag
+# github.com/sykesm/zap-logfmt v0.0.4
+## explicit
+github.com/sykesm/zap-logfmt
 # github.com/thecodeteam/goodbye v0.0.0-20170927022442-a83968bda2d3
 ## explicit
 github.com/thecodeteam/goodbye
