@@ -1,0 +1,8 @@
+/goordinator
+
+*~
+*.swp
+*.swo
+*.orig
+
+release/
