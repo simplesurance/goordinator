@@ -24,6 +24,9 @@ const appName = "goordinator"
 
 var logger *zap.Logger
 
+// Version is set via and ldflag on compilation
+var Version = "unknown"
+
 func exitOnErr(msg string, err error) {
 	if err == nil {
 		return
@@ -106,6 +109,7 @@ type arguments struct {
 	GithubWebhookSecret *string
 	GithubHTTPEndpoint  *string
 	RulesCfgFile        *string
+	ShowVersion         *bool
 }
 
 var args arguments
@@ -133,6 +137,11 @@ func mustParseCommandlineParams() {
 		LogFormat: flag.String("log-format",
 			"logfmt",
 			"define the format in that logs are printed, supported values: 'logfmt', 'json', 'plain'",
+		),
+
+		ShowVersion: flag.Bool("version",
+			false,
+			"print the version and exit",
 		),
 	}
 
@@ -256,6 +265,11 @@ func main() {
 	defer panicHandler()
 
 	mustParseCommandlineParams()
+
+	if *args.ShowVersion {
+		fmt.Printf("%s %s\n", appName, Version)
+		os.Exit(0)
+	}
 
 	mustInitLogger()
 

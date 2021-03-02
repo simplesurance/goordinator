@@ -64,3 +64,6 @@ The supported template strings are documented in the
 
 Trigger a redelivery of the lost events in the GitHub settings page of the
 repository.
+
+---------
+Homepage: <https://github.com/simplesurance/goordinator>
