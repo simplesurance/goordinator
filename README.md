@@ -33,7 +33,7 @@ timeout expired (default: 2h).
    ```sh
    systemctl daemon-reload
    systemctl enable goordinator
-   systemctl start goordinator`
+   systemctl start goordinator
    ```
 
 ## Configuration
