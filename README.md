@@ -5,7 +5,7 @@
 Goordinator listens for GitHub webhook events, runs their JSON payloads through
 a a JQ filter query and triggers actions if the filter matches.
 
-As actions currently only posting HTTP-Requestes are supported.
+The only supported action is currently posting HTTP-Requests.
 All actions are executed in parallel and retried if they fail until a retry
 timeout expired (default: 2h).
 
@@ -44,7 +44,7 @@ environment variables .
 ### Rules Configuration File
 
 A documented example configuration file can be found in the repository:
-[rules.example.toml](rules.example.toml).
+[dist/etc/goordinator/rules.toml](dist/etc/goordinator/rules.toml).
 
 ### Commandline Parameters / Environment Variables
 
