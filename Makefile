@@ -23,7 +23,7 @@ release_bin:
 	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(BUILDFLAGS) -o $(BIN) $(SRC)
 
 .PHONY: release
-release: clean dirty_worktree_check release_bin $(RELEASE_ARCHIVE)
+release: clean dirty_worktree_check release_bin $(RELEASE_ARCHIVE) $(RELEASE_ARCHIVE).sha256
 	@echo
 	@echo next steps:
 	@echo - git tag vVERSION
