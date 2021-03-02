@@ -52,12 +52,11 @@ See the output of `goordinator --help`.
 
 ### Template Strings
 
-The configuration options of actions (`httprequest`) can
-contain template strings. The template strings are replaced with concrete values
-from the event that is processed.
+The configuration options of actions can contain template strings. The template
+strings are replaced with concrete values from the event that is processed.
 
-The supported template strings are documented in [rules.example.toml].
-
+The supported template strings are documented in the
+[dist/etc/goordinator/rules.toml](example rules.toml file).
 
 ## FAQ
 
