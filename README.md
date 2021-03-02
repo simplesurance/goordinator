@@ -56,7 +56,7 @@ The configuration options of actions can contain template strings. The template
 strings are replaced with concrete values from the event that is processed.
 
 The supported template strings are documented in the
-[dist/etc/goordinator/rules.toml](example rules.toml file).
+[example rules.toml file](dist/etc/goordinator/rules.toml).
 
 ## FAQ
 
