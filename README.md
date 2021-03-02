@@ -23,11 +23,11 @@ timeout expired (default: 2h).
 
    ```sh
    cp -r dist/etc/* /etc/
-   chmod 660 /etc/conf.d/goordinator /etc/goordinator/rules.toml
+   chmod 660 /etc/goordinator/config.toml
    ```
 
-5. Adapt the configuration in `/etc/conf.d/goordinator` and define your rules in
-   `/etc/goordinator/rules.toml`.
+5. Adapt the configuration and define your rules in
+   `/etc/goordinator/config.toml`.
 6. Enable the systemd service and start it:
 
    ```sh
@@ -38,17 +38,11 @@ timeout expired (default: 2h).
 
 ## Configuration
 
-Goordinator is configured via a `rules.toml` file and commandline parameters or
-environment variables .
-
-### Rules Configuration File
-
+Goordinator is configured via a `config.toml` file. \
+The path to the configuration file can be defined via `--cfg-file` commandline
+parameter. \
 A documented example configuration file can be found in the repository:
-[dist/etc/goordinator/rules.toml](dist/etc/goordinator/rules.toml).
-
-### Commandline Parameters / Environment Variables
-
-See the output of `goordinator --help`.
+[dist/etc/goordinator/config.toml](dist/etc/goordinator/config.toml).
 
 ### Template Strings
 
@@ -56,7 +50,7 @@ The configuration options of actions can contain template strings. The template
 strings are replaced with concrete values from the event that is processed.
 
 The supported template strings are documented in the
-[example rules.toml file](dist/etc/goordinator/rules.toml).
+[example config.toml file](dist/etc/goordinator/config.toml).
 
 ## FAQ
 

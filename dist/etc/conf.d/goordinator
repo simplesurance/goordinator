@@ -1,5 +1,0 @@
-#GR_GH_WEBHOOK_ENDPOINT="/listener/github"
-#GR_GH_WEBHOOK_SECRET=""
-#GR_HTTP_LISTEN_ADDR=":8084"
-#GR_GH_WEBHOOK_SECRET="logfmt"
-#GR_RULES_FILE="/etc/goordinator/rules.toml"

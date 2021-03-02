@@ -9,11 +9,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/jamiealquiza/envy"
 	"github.com/simplesurance/goordinator/internal/cfg"
 	"github.com/simplesurance/goordinator/internal/goordinator"
 	"github.com/simplesurance/goordinator/internal/logfields"
 	"github.com/simplesurance/goordinator/internal/provider/github"
+	"github.com/spf13/pflag"
 	zaplogfmt "github.com/sykesm/zap-logfmt"
 	"github.com/thecodeteam/goodbye"
 	"go.uber.org/zap"
@@ -32,7 +32,7 @@ func exitOnErr(msg string, err error) {
 		return
 	}
 
-	fmt.Fprint(os.Stderr, msg, ", error: ", err.Error())
+	fmt.Fprintln(os.Stderr, "ERROR:", msg+", error:", err.Error())
 	os.Exit(1)
 }
 
@@ -103,43 +103,31 @@ func startHttpServer(listenAddr string, mux *http.ServeMux) {
 }
 
 type arguments struct {
-	Verbose             *bool
-	LogFormat           *string
-	HTTPListenAddr      *string
-	GithubWebhookSecret *string
-	GithubHTTPEndpoint  *string
-	RulesCfgFile        *string
-	ShowVersion         *bool
+	Verbose     *bool
+	ConfigFile  *string
+	ShowVersion *bool
 }
 
 var args arguments
 
+const defConfigFile = "/etc/goordinator/config.toml"
+
 func mustParseCommandlineParams() {
 	args = arguments{
-		Verbose: flag.Bool("verbose", false, "enable verbose logging"),
-		HTTPListenAddr: flag.String(
-			"http-listen-addr",
-			":8084",
-			"address where the http server listens for requests, the http server processes github webhook events",
+		Verbose: pflag.BoolP(
+			"verbose",
+			"v",
+			false,
+			"enable verbose logging",
 		),
-		RulesCfgFile: flag.String("rules-file",
-			"/etc/goordinator/rules.toml",
-			"path to the rules.toml configuration files",
+		ConfigFile: pflag.StringP(
+			"cfg-file",
+			"c",
+			defConfigFile,
+			"path to the goordinator configuration file",
 		),
-		GithubWebhookSecret: flag.String("gh-webhook-secret",
-			"",
-			"github webhook secret\n(https://docs.github.com/en/developers/webhooks-and-events/creating-webhooks#secret)",
-		),
-		GithubHTTPEndpoint: flag.String("gh-webhook-endpoint",
-			"/listener/github",
-			"set the http endpoint that receives github webhook events",
-		),
-		LogFormat: flag.String("log-format",
-			"logfmt",
-			"define the format in that logs are printed, supported values: 'logfmt', 'json', 'plain'",
-		),
-
-		ShowVersion: flag.Bool("version",
+		ShowVersion: pflag.Bool(
+			"version",
 			false,
 			"print the version and exit",
 		),
@@ -148,16 +136,27 @@ func mustParseCommandlineParams() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTION]\nReceive GitHub webHook events and trigger actions.\n", appName)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		flag.PrintDefaults()
+		pflag.PrintDefaults()
 	}
 
-	envy.Parse("GR")
-	flag.Parse()
+	pflag.Parse()
 
-	if *args.LogFormat != "logfmt" && *args.LogFormat != "plain" && *args.LogFormat != "json" {
-		fmt.Fprintf(os.Stderr, "unsupported log-format argument: %q\n", *args.LogFormat)
-		os.Exit(2)
+}
+
+func mustParseCfg() *cfg.Config {
+	// we use exitOnErr in this function instead of logger.Fatal() because
+	// the logger is not intialized yet
+
+	file, err := os.Open(*args.ConfigFile)
+	exitOnErr("could not open configuration files", err)
+	defer file.Close()
+
+	config, err := cfg.Load(file)
+	if err != nil {
+		exitOnErr(fmt.Sprintf("could not load configuration file: %s", *args.ConfigFile), err)
 	}
+
+	return config
 }
 
 func initLogFmtLogger() *zap.Logger {
@@ -190,15 +189,12 @@ func zapEncoderConfig() zapcore.EncoderConfig {
 	return cfg
 }
 
-func mustInitZapFormatLogger() *zap.Logger {
+func mustInitZapFormatLogger(logFormat string) *zap.Logger {
 	cfg := zap.NewProductionConfig()
 	cfg.Sampling = nil
 	cfg.EncoderConfig = zapEncoderConfig()
 	cfg.OutputPaths = []string{"stdout"}
-	cfg.Encoding = *args.LogFormat
-	if *args.LogFormat == "plain" {
-		cfg.Encoding = "console"
-	}
+	cfg.Encoding = logFormat
 
 	if *args.Verbose {
 		cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
@@ -210,59 +206,26 @@ func mustInitZapFormatLogger() *zap.Logger {
 	return logger
 }
 
-func mustInitLogger() {
-	if *args.LogFormat == "logfmt" {
+func mustInitLogger(logFormat string) {
+	switch logFormat {
+	case "logfmt":
 		logger = initLogFmtLogger()
-	} else {
-		logger = mustInitZapFormatLogger()
+	case "console", "json":
+		logger = mustInitZapFormatLogger(logFormat)
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported log-format argument: %q\n", logFormat)
+		os.Exit(2)
 	}
 
 	logger = logger.Named("main")
 	zap.ReplaceGlobals(logger)
 }
 
-func mustParseRulesCfg() goordinator.Rules {
-	file, err := os.Open(*args.RulesCfgFile)
-	if err != nil {
-		logger.Fatal(
-			"could not open rules configuration file",
-			logfields.Event("rules_cfg_opening_file_failed"),
-			zap.String("cfg_file", *args.RulesCfgFile),
-			zap.Error(err),
-		)
-	}
-	defer file.Close()
-
-	rulesCfg, err := cfg.LoadRules(file)
-	if err != nil {
-		logger.Fatal("could not load rules cfg file",
-			logfields.Event("rules_cfg_loading_failed"),
-			zap.String("cfg_file", *args.RulesCfgFile),
-			zap.Error(err),
-		)
-	}
-
-	rules, err := goordinator.RulesFromCfg(rulesCfg)
-	if err != nil {
-		logger.Fatal("could not parse rules cfg file",
-			logfields.Event("rules_cfg_parsing_failed"),
-			zap.String("cfg_file", *args.RulesCfgFile),
-			zap.Error(err),
-		)
-	}
-
-	logger.Info(
-		"loaded rules from cfg file",
-		logfields.Event("rules_cfg_loaded"),
-		zap.String("cfg_file", *args.RulesCfgFile),
-		zap.String("rules", rules.String()),
-	)
-
-	return rules
-}
-
 func main() {
 	defer panicHandler()
+
+	defer goodbye.Exit(context.Background(), 1)
+	goodbye.Notify(context.Background())
 
 	mustParseCommandlineParams()
 
@@ -271,16 +234,30 @@ func main() {
 		os.Exit(0)
 	}
 
-	mustInitLogger()
+	config := mustParseCfg()
+	rules, err := goordinator.RulesFromCfg(config)
+	exitOnErr(fmt.Sprintf("could not parse rules from configuration file: %s", *args.ConfigFile), err)
 
-	defer goodbye.Exit(context.Background(), 1)
-	goodbye.Notify(context.Background())
+	if len(rules) == 0 {
+		fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules\n", *args.ConfigFile)
+		os.Exit(1)
+	}
+
+	mustInitLogger(config.LogFormat)
+
+	logger.Info(
+		"loaded cfg file",
+		logfields.Event("cfg_loaded"),
+		zap.String("cfg_file", *args.ConfigFile),
+		zap.String("http_listen_addr", config.HttpListenAddr),
+		zap.String("gh-webhook-endpoint", config.HttpGithubWebhookEndpoint),
+		zap.String("logformat", config.LogFormat),
+		zap.String("rules", rules.String()),
+	)
 
 	goodbye.Register(func(_ context.Context, sig os.Signal) {
 		logger.Info(fmt.Sprintf("terminating, received signal %s", sig.String()))
 	})
-
-	rules := mustParseRulesCfg()
 
 	evLoop := goordinator.NewEventLoop(
 		rules,
@@ -289,17 +266,17 @@ func main() {
 
 	gh := github.New(
 		evLoop.C(),
-		github.WithPayloadSecret(*args.GithubWebhookSecret),
+		github.WithPayloadSecret(config.GithubWebHookSecret),
 	)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(*args.GithubHTTPEndpoint, gh.HttpHandler)
+	mux.HandleFunc(config.HttpGithubWebhookEndpoint, gh.HttpHandler)
 	logger.Debug(
 		"registered github webhook event handler",
 		logfields.Event("github_http_handler_registered"),
-		zap.String("endpoint", *args.GithubHTTPEndpoint),
+		zap.String("endpoint", config.HttpGithubWebhookEndpoint),
 	)
-	startHttpServer(*args.HTTPListenAddr, mux)
+	startHttpServer(config.HttpListenAddr, mux)
 
 	goodbye.Register(func(context.Context, os.Signal) {
 		logger.Debug(

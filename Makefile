@@ -4,7 +4,7 @@ GIT_DIRTY := $(if $(shell git diff-files),-dirty)
 LDFLAGS := "-X main.Version=$(GIT_COMMIT)$(GIT_DIRTY)"
 BUILDFLAGS := -trimpath -ldflags=$(LDFLAGS)
 
-TARFLAGS := --mode=go=rX,u+rw,a-s --sort=name --mtime='1970-01-01 00:00:00' --owner=0 --group=0 --numeric-owner
+TARFLAGS := --mode=go=rX,u+rw,a-s --sort=name --owner=0 --group=0 --numeric-owner
 
 BIN = goordinator
 RELEASE_ARCHIVE = release/goordinator-linux_amd64.tar.xz

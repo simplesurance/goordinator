@@ -132,7 +132,7 @@ func (r *Rule) TemplateActions(ctx context.Context, event *provider.Event) ([]ac
 }
 
 // RulesFromCfg instantiates Rules from a rulesCfg configuration.
-func RulesFromCfg(cfg *cfg.RulesCfg) (Rules, error) {
+func RulesFromCfg(cfg *cfg.Config) (Rules, error) {
 	result := make([]*Rule, 0, len(cfg.Rules))
 
 	for _, cfgRule := range cfg.Rules {

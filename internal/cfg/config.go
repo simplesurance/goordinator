@@ -7,8 +7,12 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-type RulesCfg struct {
-	Rules []*Rules `toml:"rule"`
+type Config struct {
+	HttpListenAddr            string   `toml:"http_server_listen_addr"`
+	HttpGithubWebhookEndpoint string   `toml:"http_github_webhook_endpoint"`
+	GithubWebHookSecret       string   `toml:"github_webhook_secret"`
+	LogFormat                 string   `toml:"log_format"`
+	Rules                     []*Rules `toml:"rule"`
 }
 
 type Rules struct {
@@ -18,8 +22,8 @@ type Rules struct {
 	Actions     []map[string]interface{} `toml:"action"`
 }
 
-func LoadRules(reader io.Reader) (*RulesCfg, error) {
-	var result RulesCfg
+func Load(reader io.Reader) (*Config, error) {
+	var result Config
 
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
@@ -33,6 +37,6 @@ func LoadRules(reader io.Reader) (*RulesCfg, error) {
 	return &result, nil
 }
 
-func (r *RulesCfg) Marshal(writer io.Writer) error {
+func (r *Config) Marshal(writer io.Writer) error {
 	return toml.NewEncoder(writer).Encode(r)
 }

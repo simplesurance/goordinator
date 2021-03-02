@@ -4,8 +4,7 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/goordinator
-EnvironmentFile=/etc/conf.d/goordinator
+ExecStart=/usr/local/bin/goordinator --cfg-file /etc/goordinator/config.toml
 ProtectSystem=strict
 
 [Install]
