@@ -1,6 +1,6 @@
 http_server_listen_addr = ":8084"
 http_github_webhook_endpoint = "/listener/github"
-## Supported log formats: logfmt, console, json
+# Supported log formats: logfmt, console, json
 log_format = "logfmt"
 
 # [[rule]]
