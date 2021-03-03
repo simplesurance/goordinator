@@ -12,6 +12,7 @@ type Config struct {
 	HttpGithubWebhookEndpoint string   `toml:"http_github_webhook_endpoint"`
 	GithubWebHookSecret       string   `toml:"github_webhook_secret"`
 	LogFormat                 string   `toml:"log_format"`
+	LogTimeKey                string   `toml:"log_time_key"`
 	Rules                     []*Rules `toml:"rule"`
 }
 

@@ -2,6 +2,9 @@ http_server_listen_addr = ":8084"
 http_github_webhook_endpoint = "/listener/github"
 # Supported log formats: logfmt, console, json
 log_format = "logfmt"
+# The key that is used for logging the timestamp. If empty, timestamps will not
+# be included in log messages.
+log_time_key = "time_iso8601"
 
 # [[rule]]
 #  # identifier of the rule

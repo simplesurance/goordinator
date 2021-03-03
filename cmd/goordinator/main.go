@@ -159,8 +159,8 @@ func mustParseCfg() *cfg.Config {
 	return config
 }
 
-func initLogFmtLogger() *zap.Logger {
-	cfg := zapEncoderConfig()
+func initLogFmtLogger(config *cfg.Config) *zap.Logger {
+	cfg := zapEncoderConfig(config)
 	lvl := zapcore.InfoLevel
 
 	if *args.Verbose {
@@ -179,22 +179,22 @@ func initLogFmtLogger() *zap.Logger {
 	return logger
 }
 
-func zapEncoderConfig() zapcore.EncoderConfig {
+func zapEncoderConfig(config *cfg.Config) zapcore.EncoderConfig {
 	cfg := zap.NewProductionEncoderConfig()
 
 	cfg.LevelKey = "loglevel"
-	cfg.TimeKey = "time_iso8601"
+	cfg.TimeKey = config.LogTimeKey
 	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	return cfg
 }
 
-func mustInitZapFormatLogger(logFormat string) *zap.Logger {
+func mustInitZapFormatLogger(config *cfg.Config) *zap.Logger {
 	cfg := zap.NewProductionConfig()
 	cfg.Sampling = nil
-	cfg.EncoderConfig = zapEncoderConfig()
+	cfg.EncoderConfig = zapEncoderConfig(config)
 	cfg.OutputPaths = []string{"stdout"}
-	cfg.Encoding = logFormat
+	cfg.Encoding = config.LogFormat
 
 	if *args.Verbose {
 		cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
@@ -206,14 +206,14 @@ func mustInitZapFormatLogger(logFormat string) *zap.Logger {
 	return logger
 }
 
-func mustInitLogger(logFormat string) {
-	switch logFormat {
+func mustInitLogger(config *cfg.Config) {
+	switch config.LogFormat {
 	case "logfmt":
-		logger = initLogFmtLogger()
+		logger = initLogFmtLogger(config)
 	case "console", "json":
-		logger = mustInitZapFormatLogger(logFormat)
+		logger = mustInitZapFormatLogger(config)
 	default:
-		fmt.Fprintf(os.Stderr, "unsupported log-format argument: %q\n", logFormat)
+		fmt.Fprintf(os.Stderr, "unsupported log-format argument: %q\n", config.LogFormat)
 		os.Exit(2)
 	}
 
@@ -243,7 +243,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	mustInitLogger(config.LogFormat)
+	mustInitLogger(config)
 
 	logger.Info(
 		"loaded cfg file",
@@ -251,7 +251,8 @@ func main() {
 		zap.String("cfg_file", *args.ConfigFile),
 		zap.String("http_listen_addr", config.HttpListenAddr),
 		zap.String("gh-webhook-endpoint", config.HttpGithubWebhookEndpoint),
-		zap.String("logformat", config.LogFormat),
+		zap.String("log_format", config.LogFormat),
+		zap.String("log_time_key", config.LogTimeKey),
 		zap.String("rules", rules.String()),
 	)
 
