@@ -9,7 +9,7 @@ Group=goordinator
 ExecStart=/usr/local/bin/goordinator --cfg-file /etc/goordinator/config.toml
 
 CapabilityBoundingSet=CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_SYS_ADMIN 
+CapabilityBoundingSet=CAP_SYS_ADMIN
 CapabilityBoundingSet=CAP_SYS_PTRACE
 NoNewPrivileges=yes
 PrivateDevices=yes
@@ -25,7 +25,6 @@ ProtectHostname=yes
 ProtectProc=noaccess
 ProtectSystem=strict
 ReadOnlyPaths=/etc/
-ReadOnlyPaths=/etc/goordinator
 RestrictNamespaces=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
