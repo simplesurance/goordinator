@@ -173,9 +173,6 @@ func initLogFmtLogger(config *cfg.Config) *zap.Logger {
 		lvl),
 	)
 
-	zap.ReplaceGlobals(logger)
-	logger = logger.Named("main")
-
 	return logger
 }
 
