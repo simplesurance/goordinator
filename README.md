@@ -3,7 +3,7 @@
 ## Introduction
 
 Goordinator listens for GitHub webhook events, runs their JSON payloads through
-a a JQ filter query and triggers actions if the filter matches.
+a JQ filter query and triggers actions if the filter matches.
 
 The only supported action is currently posting HTTP-Requests.
 All actions are executed in parallel and retried if they fail until a retry
