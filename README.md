@@ -18,12 +18,18 @@ timeout expired (default: 2h).
    ```sh
    install -o root -g root -m 775 goordinator /usr/local/bin/goordinator
    ```
+4. Create a goordinator group and user:
+
+   ```sh
+   useradd -r goordinator
+   ```
 
 4. Copy the configuration files to `/etc`:
 
    ```sh
    cp -r dist/etc/* /etc/
    chmod 660 /etc/goordinator/config.toml
+   chown root:goordinator /etc/goordinator/config.toml
    ```
 
 5. Adapt the configuration and define your rules in

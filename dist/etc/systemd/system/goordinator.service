@@ -4,8 +4,31 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
+User=goordinator
+Group=goordinator
 ExecStart=/usr/local/bin/goordinator --cfg-file /etc/goordinator/config.toml
+
+CapabilityBoundingSet=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_SYS_ADMIN 
+CapabilityBoundingSet=CAP_SYS_PTRACE
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+PrivateUsers=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectHostname=yes
+ProtectProc=noaccess
 ProtectSystem=strict
+ReadOnlyPaths=/etc/
+ReadOnlyPaths=/etc/goordinator
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
 
 [Install]
 WantedBy=multi-user.target
