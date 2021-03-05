@@ -52,6 +52,56 @@ func panicHandler() {
 	}
 }
 
+func startHttpsServer(listenAddr string, certFile, keyFile string, mux *http.ServeMux) {
+	httpsServer := http.Server{
+		Addr:    listenAddr,
+		Handler: mux,
+	}
+
+	goodbye.Register(func(context.Context, os.Signal) {
+		const shutdownTimeout = 30 * time.Second
+		ctx, cancelFn := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancelFn()
+
+		logger.Debug(
+			"terminating https server",
+			logfields.Event("https_server_terminating"),
+			zap.Duration("shutdown_timeout", shutdownTimeout),
+		)
+
+		err := httpsServer.Shutdown(ctx)
+		if err != nil {
+			logger.Warn(
+				"shutting down https server failed",
+				logfields.Event("https_server_termination_failed"),
+				zap.Error(err),
+			)
+		}
+	})
+
+	go func() {
+		defer panicHandler()
+
+		logger.Info(
+			"https server started",
+			logfields.Event("https_server_started"),
+			zap.String("listenAddr", listenAddr),
+		)
+
+		err := httpsServer.ListenAndServeTLS(certFile, keyFile)
+		if errors.Is(err, http.ErrServerClosed) {
+			logger.Info("https server terminated", logfields.Event("http_server_terminated"))
+			return
+		}
+
+		logger.Fatal(
+			"https server terminated unexpectedly",
+			logfields.Event("https_server_terminated_unexpectedly"),
+			zap.Error(err),
+		)
+	}()
+}
+
 func startHttpServer(listenAddr string, mux *http.ServeMux) {
 	httpServer := http.Server{
 		Addr:    listenAddr,
@@ -246,8 +296,9 @@ func main() {
 		"loaded cfg file",
 		logfields.Event("cfg_loaded"),
 		zap.String("cfg_file", *args.ConfigFile),
-		zap.String("http_listen_addr", config.HttpListenAddr),
-		zap.String("gh-webhook-endpoint", config.HttpGithubWebhookEndpoint),
+		zap.String("http_server_listen_addr", config.HttpListenAddr),
+		zap.String("https_server_listen_addr", config.HttpListenAddr),
+		zap.String("github_webhook_endpoint", config.HttpGithubWebhookEndpoint),
 		zap.String("log_format", config.LogFormat),
 		zap.String("log_time_key", config.LogTimeKey),
 		zap.String("rules", rules.String()),
@@ -274,7 +325,23 @@ func main() {
 		logfields.Event("github_http_handler_registered"),
 		zap.String("endpoint", config.HttpGithubWebhookEndpoint),
 	)
-	startHttpServer(config.HttpListenAddr, mux)
+
+	if config.HttpListenAddr == "" && config.HttpsListenAddr == "" {
+		logger.Warn("https_server_listen_addr and http_server_listen_addr configuration parameters are empty, not http server is started")
+	}
+
+	if config.HttpListenAddr != "" {
+		startHttpServer(config.HttpListenAddr, mux)
+	}
+
+	if config.HttpsListenAddr != "" {
+		startHttpsServer(
+			config.HttpsListenAddr,
+			config.HttpsCertFile,
+			config.HttpsKeyFile,
+			mux,
+		)
+	}
 
 	goodbye.Register(func(context.Context, os.Signal) {
 		logger.Debug(

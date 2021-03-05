@@ -9,7 +9,10 @@ import (
 
 type Config struct {
 	HttpListenAddr            string   `toml:"http_server_listen_addr"`
-	HttpGithubWebhookEndpoint string   `toml:"http_github_webhook_endpoint"`
+	HttpsListenAddr           string   `toml:"https_server_listen_addr"`
+	HttpsCertFile             string   `toml:"https_ssl_cert_file"`
+	HttpsKeyFile              string   `toml:"https_ssl_key_file"`
+	HttpGithubWebhookEndpoint string   `toml:"github_webhook_endpoint"`
 	GithubWebHookSecret       string   `toml:"github_webhook_secret"`
 	LogFormat                 string   `toml:"log_format"`
 	LogTimeKey                string   `toml:"log_time_key"`
