@@ -1,7 +1,6 @@
 package github
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/google/go-github/v33/github"
@@ -87,28 +86,8 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	eventJSON, err := json.Marshal(event)
-	if err != nil {
-		logger.Error(
-			"could not marshal event into json",
-			logfields.Event("github_json_event_marshalling_failed"),
-			zap.Error(err),
-		)
-	}
-
-	if eventJSON == nil {
-		logger.Error(
-			"event payload marshalled into nil json",
-			logfields.Event("github_json_event_marshalled_to_nil"),
-			zap.ByteString("payload", eventJSON),
-		)
-
-		http.Error(resp, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	ev := provider.Event{
-		Json:       eventJSON,
+		Json:       payload,
 		Provider:   "github",
 		LogFields:  logFields,
 		DeliveryID: deliveryID,
