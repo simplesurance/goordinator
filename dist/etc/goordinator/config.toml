@@ -4,6 +4,7 @@ https_ssl_cert_file = ""
 https_ssl_key_file = ""
 # the local http and https endpoints that receives github webhook events
 github_webhook_endpoint = "/listener/github"
+github_webhook_secret=""
 # Supported log formats: logfmt, console, json
 log_format = "logfmt"
 # The key that is used for logging the timestamp. If empty, timestamps will not
