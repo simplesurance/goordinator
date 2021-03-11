@@ -93,6 +93,10 @@ func (r *Rule) Match(ctx context.Context, event *provider.Event) (MatchResult, e
 		return EventSourceMismatch, nil
 	}
 
+	if len(event.Json) == 0 {
+		return MatchResultUndefined, errors.New("json field of event is empty")
+	}
+
 	err := json.Unmarshal(event.Json, &evUn)
 	if err != nil {
 		return MatchResultUndefined, fmt.Errorf("unmarshaling json failed: %w", err)
