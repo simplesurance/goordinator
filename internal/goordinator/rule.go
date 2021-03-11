@@ -51,6 +51,39 @@ func NewRule(name, eventProvider, jqQuery string, actions []ActionConfig) (*Rule
 	}, nil
 }
 
+func goJQIterToSlice(iter gojq.Iter) ([]interface{}, []error) {
+	var result []interface{}
+	var errors []error
+
+	for {
+		res, ok := iter.Next()
+		if !ok {
+			return result, errors
+		}
+
+		if err, isErr := res.(error); isErr {
+			errors = append(errors, err)
+			continue
+		}
+
+		result = append(result, res)
+	}
+}
+
+func errString(errs []error) string {
+	var result strings.Builder
+
+	for i, err := range errs {
+		if i > 0 {
+			result.WriteString("; ")
+		}
+
+		result.WriteString(fmt.Sprintf("error %d: %s", i, err))
+	}
+
+	return result.String()
+}
+
 // Match returns Match if the event.Provider matches the Rule.EventSource and
 // the filter-query of the rule evalutes to true for JSON representation of the event.
 func (r *Rule) Match(ctx context.Context, event *provider.Event) (MatchResult, error) {
@@ -65,18 +98,20 @@ func (r *Rule) Match(ctx context.Context, event *provider.Event) (MatchResult, e
 		return MatchResultUndefined, fmt.Errorf("unmarshaling json failed: %w", err)
 	}
 
-	iter := r.filterQuery.RunWithContext(ctx, evUn)
-
-	result, ok := iter.Next()
-	if !ok {
-		return MatchResultUndefined, fmt.Errorf("json query returned 0 results, query: %q", r.filterQuery.String())
+	result, errors := goJQIterToSlice(r.filterQuery.RunWithContext(ctx, evUn))
+	if len(errors) != 0 {
+		return MatchResultUndefined, fmt.Errorf("json query returned errors, query: %q, errors: %s", r.filterQuery.String(), errString(errors))
 	}
 
-	if _, ok := iter.Next(); ok {
-		return MatchResultUndefined, fmt.Errorf("json query returned multiple results, expected 1, query: %q", r.filterQuery.String())
+	if len(result) == 0 {
+		return MatchResultUndefined, fmt.Errorf("json query returned 0 results, expected 1, query: %q", r.filterQuery.String())
 	}
 
-	switch val := result.(type) {
+	if len(result) > 1 {
+		return MatchResultUndefined, fmt.Errorf("json query returned multiple results, expected 1, query: %q, result: '%+v'", r.filterQuery.String(), result)
+	}
+
+	switch val := result[0].(type) {
 	case error:
 		return MatchResultUndefined, val
 
