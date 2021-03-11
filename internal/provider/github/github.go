@@ -130,7 +130,7 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 		}
 
 	default:
-		logger.Info("skipping extracting additional information from event, event type unsupported",
+		logger.Info("ignoring event, event type is unsupported",
 			logfields.Event("github_unsupported_event_received"),
 		)
 
