@@ -96,6 +96,17 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 		)
 	}
 
+	if eventJSON == nil {
+		logger.Error(
+			"event payload marshalled into nil json",
+			logfields.Event("github_json_event_marshalled_to_nil"),
+			zap.ByteString("payload", eventJSON),
+		)
+
+		http.Error(resp, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	ev := provider.Event{
 		Json:       eventJSON,
 		Provider:   "github",
