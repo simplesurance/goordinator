@@ -2,6 +2,7 @@ package github
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/google/go-github/v33/github"
 	"github.com/simplesurance/goordinator/internal/logfields"
@@ -95,6 +96,21 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	switch event := event.(type) {
+	case *github.PushEvent:
+		if repo := event.GetRepo(); repo != nil {
+			ev.Repository = repo.GetName()
+		}
+
+		ref := event.GetRef()
+		if strings.HasPrefix(ref, "refs/heads/") {
+			ev.Branch = strings.TrimPrefix(ref, "refs/heads/")
+		}
+
+		logFields = append(
+			logFields,
+			zap.String("github.branch", ev.Branch),
+		)
+
 	case *github.PullRequestEvent:
 		if repo := event.GetRepo(); repo != nil {
 			ev.Repository = repo.GetName()
@@ -115,8 +131,6 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 				zap.String("github.commit_id", ev.CommitID),
 				zap.String("github.branch", ev.Branch),
 			)
-
-			logger = logger.With(logFields...)
 		}
 
 	default:
@@ -125,6 +139,8 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 		)
 
 	}
+
+	logger = logger.With(logFields...)
 
 	select {
 	case p.c <- &ev:

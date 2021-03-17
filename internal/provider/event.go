@@ -11,7 +11,8 @@ type Event struct {
 	Json      []byte
 	Provider  string
 
-	// Github hook fields
+	// Github hook fields, if the value is not available they are empty
+	// strings.
 	DeliveryID      string
 	EventType       string
 	Repository      string
