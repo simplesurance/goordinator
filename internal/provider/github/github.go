@@ -90,7 +90,6 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 	ev := provider.Event{
 		Json:       payload,
 		Provider:   "github",
-		LogFields:  logFields,
 		DeliveryID: deliveryID,
 		EventType:  hookType,
 	}
@@ -141,6 +140,7 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	logger = logger.With(logFields...)
+	ev.LogFields = logFields
 
 	select {
 	case p.c <- &ev:
