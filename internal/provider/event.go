@@ -8,7 +8,7 @@ import (
 
 type Event struct {
 	LogFields []zap.Field
-	Json      []byte
+	JSON      []byte
 	Provider  string
 
 	// Github hook fields, if the value is not available they are empty

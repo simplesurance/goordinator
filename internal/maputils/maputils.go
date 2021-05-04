@@ -53,7 +53,7 @@ func MapSliceVal(m map[string]interface{}, key string) (map[string]interface{}, 
 	return iMap, nil
 }
 
-// ToStrMap convers the map to map[string]string.
+// ToStrMap converts the map to map[string]string.
 // If a value in m is not a string an error is returned.
 func ToStrMap(m map[string]interface{}) (map[string]string, error) {
 	result := make(map[string]string, len(m))

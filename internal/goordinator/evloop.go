@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"go.uber.org/zap"
+
 	"github.com/simplesurance/goordinator/internal/action"
 	"github.com/simplesurance/goordinator/internal/action/httprequest"
 	"github.com/simplesurance/goordinator/internal/logfields"
 	"github.com/simplesurance/goordinator/internal/provider"
-	"go.uber.org/zap"
 )
 
 const DefEventChannelBufferSize = 512

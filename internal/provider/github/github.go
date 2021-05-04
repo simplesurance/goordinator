@@ -4,9 +4,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/go-github/v33/github"
 	"github.com/simplesurance/goordinator/internal/logfields"
 	"github.com/simplesurance/goordinator/internal/provider"
+
+	"github.com/google/go-github/v33/github"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +24,7 @@ type Provider struct {
 
 type option func(*Provider)
 
-func WithPayloadSecret(secret string) option {
+func WithPayloadSecret(secret string) option { // nolint:golint // returning unexported field is fine here
 	return func(p *Provider) {
 		p.webhookSecret = []byte(secret)
 	}
@@ -45,7 +46,7 @@ func New(eventChan chan<- *provider.Event, opts ...option) *Provider {
 	return &p
 }
 
-func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
+func (p *Provider) HTTPHandler(resp http.ResponseWriter, req *http.Request) {
 	p.logging.Debug("received a http request", logfields.Event("github_event_received"))
 
 	deliveryID := github.DeliveryID(req)
@@ -88,7 +89,7 @@ func (p *Provider) HttpHandler(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	ev := provider.Event{
-		Json:       payload,
+		JSON:       payload,
 		Provider:   "github",
 		DeliveryID: deliveryID,
 		EventType:  hookType,

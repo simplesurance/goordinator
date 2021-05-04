@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/simplesurance/goordinator/internal/action"
 	"github.com/simplesurance/goordinator/internal/maputils"
-	"go.uber.org/zap"
 )
 
 const loggerName = "action.httprequest"
@@ -90,9 +91,9 @@ func NewConfigFromMap(m map[string]interface{}) (*Config, error) {
 // Template runs the fn callback on all configuration options that can contain
 // template strings.  fn must replace the template strings.
 // It returns an executable action that uses the templated config.
-func (h *Config) Template(fn func(string) (string, error)) (action.Runner, error) {
+func (c *Config) Template(fn func(string) (string, error)) (action.Runner, error) {
 	var err error
-	newConfig := *h
+	newConfig := *c
 
 	newConfig.url, err = fn(newConfig.url)
 	if err != nil {
@@ -106,8 +107,8 @@ func (h *Config) Template(fn func(string) (string, error)) (action.Runner, error
 		}
 	}
 
-	for k, v := range h.headers {
-		h.headers[k], err = fn(v)
+	for k, v := range c.headers {
+		c.headers[k], err = fn(v)
 		if err != nil {
 			return nil, fmt.Errorf("templating header failed: %w", err)
 		}

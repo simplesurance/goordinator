@@ -9,15 +9,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/simplesurance/goordinator/internal/cfg"
-	"github.com/simplesurance/goordinator/internal/goordinator"
-	"github.com/simplesurance/goordinator/internal/logfields"
-	"github.com/simplesurance/goordinator/internal/provider/github"
 	"github.com/spf13/pflag"
 	zaplogfmt "github.com/sykesm/zap-logfmt"
 	"github.com/thecodeteam/goodbye"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/simplesurance/goordinator/internal/cfg"
+	"github.com/simplesurance/goordinator/internal/goordinator"
+	"github.com/simplesurance/goordinator/internal/logfields"
+	"github.com/simplesurance/goordinator/internal/provider/github"
 )
 
 const appName = "goordinator"
@@ -52,7 +53,7 @@ func panicHandler() {
 	}
 }
 
-func startHttpsServer(listenAddr string, certFile, keyFile string, mux *http.ServeMux) {
+func startHTTPSServer(listenAddr string, certFile, keyFile string, mux *http.ServeMux) {
 	httpsServer := http.Server{
 		Addr:    listenAddr,
 		Handler: mux,
@@ -102,7 +103,7 @@ func startHttpsServer(listenAddr string, certFile, keyFile string, mux *http.Ser
 	}()
 }
 
-func startHttpServer(listenAddr string, mux *http.ServeMux) {
+func startHTTPServer(listenAddr string, mux *http.ServeMux) {
 	httpServer := http.Server{
 		Addr:    listenAddr,
 		Handler: mux,
@@ -296,9 +297,9 @@ func main() {
 		"loaded cfg file",
 		logfields.Event("cfg_loaded"),
 		zap.String("cfg_file", *args.ConfigFile),
-		zap.String("http_server_listen_addr", config.HttpListenAddr),
-		zap.String("https_server_listen_addr", config.HttpListenAddr),
-		zap.String("github_webhook_endpoint", config.HttpGithubWebhookEndpoint),
+		zap.String("http_server_listen_addr", config.HTTPListenAddr),
+		zap.String("https_server_listen_addr", config.HTTPListenAddr),
+		zap.String("github_webhook_endpoint", config.HTTPGithubWebhookEndpoint),
 		zap.String("log_format", config.LogFormat),
 		zap.String("log_time_key", config.LogTimeKey),
 		zap.String("rules", rules.String()),
@@ -319,26 +320,26 @@ func main() {
 	)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(config.HttpGithubWebhookEndpoint, gh.HttpHandler)
+	mux.HandleFunc(config.HTTPGithubWebhookEndpoint, gh.HTTPHandler)
 	logger.Debug(
 		"registered github webhook event handler",
 		logfields.Event("github_http_handler_registered"),
-		zap.String("endpoint", config.HttpGithubWebhookEndpoint),
+		zap.String("endpoint", config.HTTPGithubWebhookEndpoint),
 	)
 
-	if config.HttpListenAddr == "" && config.HttpsListenAddr == "" {
+	if config.HTTPListenAddr == "" && config.HTTPSListenAddr == "" {
 		logger.Warn("https_server_listen_addr and http_server_listen_addr configuration parameters are empty, not http server is started")
 	}
 
-	if config.HttpListenAddr != "" {
-		startHttpServer(config.HttpListenAddr, mux)
+	if config.HTTPListenAddr != "" {
+		startHTTPServer(config.HTTPListenAddr, mux)
 	}
 
-	if config.HttpsListenAddr != "" {
-		startHttpsServer(
-			config.HttpsListenAddr,
-			config.HttpsCertFile,
-			config.HttpsKeyFile,
+	if config.HTTPSListenAddr != "" {
+		startHTTPSServer(
+			config.HTTPSListenAddr,
+			config.HTTPSCertFile,
+			config.HTTPSKeyFile,
 			mux,
 		)
 	}
