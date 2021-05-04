@@ -113,7 +113,7 @@ func (h *Config) Template(fn func(string) (string, error)) (action.Runner, error
 		}
 	}
 
-	return &Runner{Config: &newConfig}, nil
+	return NewRunner(&newConfig), nil
 }
 
 func (c *Config) String() string {
