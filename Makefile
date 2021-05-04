@@ -49,3 +49,8 @@ dirty_worktree_check:
 		echo "remove untracked files and changed files in repository before creating a release, see 'git status'"; \
 		exit 1; \
 		fi
+
+.PHONY: check
+check:
+	$(info * running static code checks)
+	@golangci-lint run
