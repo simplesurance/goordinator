@@ -44,4 +44,4 @@ jobs:
         uses: actions/checkout@v2
 
       - name: golangci-lint
-        run: docker run -v $GITHUB_WORKSPACE:/repo -w /repo golangci/golangci-lint:v1.38 golangci-lint run
+        run: docker run -v $GITHUB_WORKSPACE:/repo -w /repo golangci/golangci-lint:v1.39 golangci-lint run
