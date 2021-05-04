@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	"github.com/itchyny/gojq"
+
 	"github.com/simplesurance/goordinator/internal/action"
 	"github.com/simplesurance/goordinator/internal/action/httprequest"
 	"github.com/simplesurance/goordinator/internal/cfg"
@@ -93,11 +94,11 @@ func (r *Rule) Match(ctx context.Context, event *provider.Event) (MatchResult, e
 		return EventSourceMismatch, nil
 	}
 
-	if len(event.Json) == 0 {
+	if len(event.JSON) == 0 {
 		return MatchResultUndefined, errors.New("json field of event is empty")
 	}
 
-	err := json.Unmarshal(event.Json, &evUn)
+	err := json.Unmarshal(event.JSON, &evUn)
 	if err != nil {
 		return MatchResultUndefined, fmt.Errorf("unmarshaling json failed: %w", err)
 	}

@@ -7,8 +7,9 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/simplesurance/goordinator/internal/logfields"
 	"go.uber.org/zap"
+
+	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
 // Runner executes a http request.
