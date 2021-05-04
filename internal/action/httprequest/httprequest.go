@@ -6,15 +6,30 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
+const DefaultHttpClientTimeout = time.Minute
+
 // Runner executes a http request.
 type Runner struct {
 	*Config
+	client *http.Client
+}
+
+// NewRunner returns a new Runner struct.
+// The HTTPClient of the runner uses a timeout of DefaultHttpClientTimeout.
+func NewRunner(cfg *Config) *Runner {
+	return &Runner{
+		Config: cfg,
+		client: &http.Client{
+			Timeout: DefaultHttpClientTimeout,
+		},
+	}
 }
 
 func (h *Runner) String() string {
@@ -40,7 +55,7 @@ func (h *Runner) Run(ctx context.Context) error {
 		req.Header.Add(k, v)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.client.Do(req)
 	if err != nil {
 		return err
 	}
