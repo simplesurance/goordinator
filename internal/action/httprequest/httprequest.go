@@ -13,7 +13,7 @@ import (
 	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
-const DefaultHttpClientTimeout = time.Minute
+const DefaultHTTPClientTimeout = time.Minute
 
 // Runner executes a http request.
 type Runner struct {
@@ -27,7 +27,7 @@ func NewRunner(cfg *Config) *Runner {
 	return &Runner{
 		Config: cfg,
 		client: &http.Client{
-			Timeout: DefaultHttpClientTimeout,
+			Timeout: DefaultHTTPClientTimeout,
 		},
 	}
 }
