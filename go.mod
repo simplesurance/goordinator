@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/google/go-github/v33 v33.0.0
+	github.com/google/go-github/v35 v35.2.0
 	github.com/itchyny/gojq v0.12.2
 	github.com/pelletier/go-toml v1.9.0
 	github.com/pkg/errors v0.9.1 // indirect
