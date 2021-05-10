@@ -19,11 +19,15 @@ type Config struct {
 	Rules                     []*Rules `toml:"rule"`
 }
 
+type Trigger struct {
+	EventSource string `toml:"event_source"`
+	FilterQuery string `toml:"filter_query"`
+}
+
 type Rules struct {
-	Name        string                   `toml:"name"`
-	EventSource string                   `toml:"event_source"`
-	FilterQuery string                   `toml:"filter_query"`
-	Actions     []map[string]interface{} `toml:"action"`
+	Name string `toml:"name"`
+	Trigger
+	Actions []map[string]interface{} `toml:"action"`
 }
 
 func Load(reader io.Reader) (*Config, error) {
