@@ -58,6 +58,15 @@ strings are replaced with concrete values from the event that is processed.
 The supported template strings are documented in the
 [example config.toml file](dist/etc/goordinator/config.toml).
 
+## Project Status
+
+The project is an early stage. Breaking changes happen anytime. \
+Tests were not implemented yet, therefore breakage in the *main* branch is
+likely.
+
+The release binaries are in a more stable state. They are roughly tested and
+used internally.
+
 ## FAQ
 
 #### Github Hook Events did not arrive because the Application was unreachable
