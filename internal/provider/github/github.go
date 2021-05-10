@@ -88,63 +88,16 @@ func (p *Provider) HTTPHandler(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	ev := provider.Event{
-		JSON:       payload,
-		Provider:   "github",
-		DeliveryID: deliveryID,
-		EventType:  hookType,
-	}
+	ev := extractEventInfo(event)
+	ev.JSON = payload
+	ev.Provider = "github"
+	ev.DeliveryID = deliveryID
+	ev.EventType = hookType
 
-	switch event := event.(type) {
-	case *github.PushEvent:
-		if repo := event.GetRepo(); repo != nil {
-			ev.Repository = repo.GetName()
-		}
-
-		ref := event.GetRef()
-		if strings.HasPrefix(ref, "refs/heads/") {
-			ev.Branch = strings.TrimPrefix(ref, "refs/heads/")
-		}
-
-		logFields = append(
-			logFields,
-			zap.String("github.branch", ev.Branch),
-		)
-
-	case *github.PullRequestEvent:
-		if repo := event.GetRepo(); repo != nil {
-			ev.Repository = repo.GetName()
-		}
-
-		if pr := event.GetPullRequest(); pr != nil {
-			ev.PullRequestNr = pr.GetNumber()
-
-			if hb := pr.GetHead(); hb != nil {
-				ev.CommitID = hb.GetSHA()
-				ev.Branch = hb.GetRef()
-
-			}
-
-			logFields = append(
-				logFields,
-				zap.Int("github.pull_request_nr", ev.PullRequestNr),
-				zap.String("github.commit_id", ev.CommitID),
-				zap.String("github.branch", ev.Branch),
-			)
-		}
-
-	default:
-		logger.Info("ignoring event, event type is unsupported",
-			logfields.Event("github_unsupported_event_received"),
-		)
-
-	}
-
-	logger = logger.With(logFields...)
-	ev.LogFields = logFields
+	logger = logger.With(ev.LogFields()...)
 
 	select {
-	case p.c <- &ev:
+	case p.c <- ev:
 		logger.Debug("event forwarded to channel",
 			logfields.Event("github_event_forwarded"),
 		)
@@ -159,4 +112,56 @@ func (p *Provider) HTTPHandler(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "queue full", http.StatusServiceUnavailable)
 		return
 	}
+}
+
+type pushEventRepoGetter interface {
+	GetRepo() *github.PushEventRepository
+}
+
+type repoGetter interface {
+	GetRepo() *github.Repository
+}
+
+type refGetter interface {
+	GetRef() string
+}
+
+type pullRequestGetter interface {
+	GetPullRequest() *github.PullRequest
+}
+
+func extractEventInfo(ghEvent interface{}) *provider.Event {
+	var result provider.Event
+
+	if v, ok := ghEvent.(pushEventRepoGetter); ok {
+		if repo := v.GetRepo(); repo != nil {
+			result.Repository = repo.GetName()
+		}
+	} else if v, ok := ghEvent.(repoGetter); ok {
+		if repo := v.GetRepo(); repo != nil {
+			result.Repository = repo.GetName()
+		}
+	}
+
+	if v, ok := ghEvent.(refGetter); ok {
+		ref := v.GetRef()
+		if strings.HasPrefix(ref, "refs/heads/") {
+			result.Branch = strings.TrimPrefix(ref, "refs/heads/")
+		}
+	}
+
+	if v, ok := ghEvent.(pullRequestGetter); ok {
+		if pr := v.GetPullRequest(); pr != nil {
+			result.PullRequestNr = pr.GetNumber()
+
+			if head := pr.GetHead(); head != nil {
+				result.CommitID = head.GetSHA()
+				// ref in PullRequestEvent contains **only**
+				// the branch name without 'refs/heads/ prefix
+				result.Branch = head.GetRef()
+			}
+		}
+	}
+
+	return &result
 }
