@@ -74,7 +74,7 @@ func (e *EvLoop) Start() {
 	e.logger.Info("ready to process events", logfields.Event("eventloop_started"))
 
 	for ev := range e.ch {
-		logger := e.logger.With(ev.LogFields...)
+		logger := e.logger.With(ev.LogFields()...)
 
 		logger.Debug("event received", logfields.Event("event_received"))
 
@@ -161,7 +161,7 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, acti
 		defer ticker.Stop()
 
 		logger := e.logger.With(append(
-			event.LogFields,
+			event.LogFields(),
 			action.LogFields()...,
 		)...)
 
