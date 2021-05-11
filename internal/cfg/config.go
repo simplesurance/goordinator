@@ -20,7 +20,7 @@ type Config struct {
 }
 
 type Trigger struct {
-	EventSource string `toml:"event_source"`
+	EventSource string `toml:"event_source" default:"github"`
 	FilterQuery string `toml:"filter_query"`
 }
 

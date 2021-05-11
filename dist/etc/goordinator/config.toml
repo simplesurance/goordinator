@@ -14,8 +14,8 @@ log_time_key = "time_iso8601"
 # [[rule]]
 #  # identifier of the rule
 # name = "trigger-ci-jobs"
-#  # for which event source the rule applies, currently only "github" is
-#  # supported
+#  # for which event source the rule applies, only "github" is
+#  # supported and is the default if not specified
 #  event_source = "github"
 #  # a JSON query (JQ) string that runs on the JSON representation of the event.
 #  # The result must be a single boolean value. If it's true the actions of the
