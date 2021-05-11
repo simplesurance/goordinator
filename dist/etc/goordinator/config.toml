@@ -35,14 +35,14 @@ log_time_key = "time_iso8601"
 # # All fields can contain template strings that are replaced with concrete
 # # information from the event.
 # # The following template strings are supported:
-# # - `{{ .EVENT.PullRequestNr }}`
-# # - `{{ .EVENT.PullRequestName }}`
-# # - `{{ .EVENT.Branch }}`
-# # - `{{ .EVENT.CommitID }}`
-# # - `{{ .EVENT.Repository }}`
-# # - `{{ .EVENT.EventType }}`
-# # - `{{ .EVENT.DeliveryID }}`
-# # - `{{ .EVENT.Provider }}`
+# # - `{{ .Event.PullRequestNr }}`
+# # - `{{ .Event.PullRequestName }}`
+# # - `{{ .Event.Branch }}`
+# # - `{{ .Event.CommitID }}`
+# # - `{{ .Event.Repository }}`
+# # - `{{ .Event.EventType }}`
+# # - `{{ .Event.DeliveryID }}`
+# # - `{{ .Event.Provider }}`
 #  [[rule.action]]
 #    # action type, only "httprequest" is supported
 #    action = "httprequest"
