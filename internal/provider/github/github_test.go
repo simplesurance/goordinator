@@ -19,11 +19,11 @@ func TestHTTPHandlerEventParsing(t *testing.T) {
 		name string
 		req  *http.Request
 
-		expectedJSON              []byte
+		expectedJSON              string
 		expectedBranch            string
 		expectedDeliveryID        string
-		expectedEventType         string
 		expectedProvider          string
+		expectedEventType         string
 		expectedPullRequestNumber int
 		expectedCommitID          string
 	}
@@ -32,12 +32,13 @@ func TestHTTPHandlerEventParsing(t *testing.T) {
 		{
 			name:                      "pullRequestSync",
 			req:                       newPullRequestSyncHTTPReq(),
-			expectedJSON:              []byte(pullRequestSynchronizeEventPayload),
+			expectedJSON:              pullRequestSynchronizeEventPayload,
 			expectedBranch:            "pr",
 			expectedDeliveryID:        "3355fab0-b22c-11eb-9936-51d9540c0cdc",
+			expectedProvider:          "github",
 			expectedEventType:         "pull_request",
 			expectedPullRequestNumber: 1,
-			expectedCommitID:          "", // not parsed currently
+			expectedCommitID:          "8ad9dec4298f6b8f020997373cf4fe22005f2c06",
 		},
 	}
 
@@ -51,17 +52,18 @@ func TestHTTPHandlerEventParsing(t *testing.T) {
 			provider := New(evChan)
 
 			respRecorder := httptest.NewRecorder()
-			provider.HTTPHandler(respRecorder, newPullRequestSyncHTTPReq())
+			provider.HTTPHandler(respRecorder, tc.req)
 			require.Equal(t, 200, respRecorder.Code)
 
 			event := <-evChan
 
-			assert.Equal(t, pullRequestSynchronizeEventPayload, string(event.JSON))
-			assert.Equal(t, "pr", event.Branch)
-			assert.Equal(t, "3355fab0-b22c-11eb-9936-51d9540c0cdc", event.DeliveryID)
-			assert.Equal(t, "pull_request", event.EventType)
-			assert.Equal(t, "github", event.Provider)
-			assert.Equal(t, 1, event.PullRequestNr)
+			assert.Equal(t, tc.expectedJSON, string(event.JSON))
+			assert.Equal(t, tc.expectedBranch, event.Branch)
+			assert.Equal(t, tc.expectedDeliveryID, event.DeliveryID)
+			assert.Equal(t, tc.expectedEventType, event.EventType)
+			assert.Equal(t, tc.expectedProvider, event.Provider)
+			assert.Equal(t, tc.expectedPullRequestNumber, event.PullRequestNr)
+			assert.Equal(t, tc.expectedCommitID, event.CommitID)
 		})
 	}
 }
