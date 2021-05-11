@@ -1,6 +1,8 @@
 # github.com/cenkalti/backoff v2.2.1+incompatible
 ## explicit
 github.com/cenkalti/backoff
+# github.com/davecgh/go-spew v1.1.1
+github.com/davecgh/go-spew/spew
 # github.com/google/go-github/v35 v35.2.0
 ## explicit
 github.com/google/go-github/v35/github
@@ -16,11 +18,15 @@ github.com/itchyny/timefmt-go
 github.com/pelletier/go-toml
 # github.com/pkg/errors v0.9.1
 ## explicit
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
 # github.com/spf13/pflag v1.0.5
 ## explicit
 github.com/spf13/pflag
-# github.com/stretchr/testify v1.6.1
+# github.com/stretchr/testify v1.7.0
 ## explicit
+github.com/stretchr/testify/assert
+github.com/stretchr/testify/require
 # github.com/sykesm/zap-logfmt v0.0.4
 ## explicit
 github.com/sykesm/zap-logfmt
@@ -38,7 +44,9 @@ go.uber.org/zap/buffer
 go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
+go.uber.org/zap/internal/ztest
 go.uber.org/zap/zapcore
+go.uber.org/zap/zaptest
 # golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 golang.org/x/crypto/cast5
 golang.org/x/crypto/openpgp
@@ -51,3 +59,5 @@ golang.org/x/crypto/openpgp/s2k
 ## explicit
 # gopkg.in/yaml.v2 v2.4.0
 ## explicit
+# gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+gopkg.in/yaml.v3
