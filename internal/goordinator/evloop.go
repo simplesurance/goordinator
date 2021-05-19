@@ -196,6 +196,16 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, acti
 				if err != nil {
 					var httpErr *httprequest.ErrorHTTPRequest
 
+					if errors.Is(err, context.Canceled) {
+						logger.Error(
+							"action cancelled",
+							logfields.Event("action_cancelled"),
+							logFieldActionResult("cancelled"),
+							zap.Error(err),
+						)
+						return
+					}
+
 					if errors.As(err, &httpErr) {
 						logger.Info(
 							"action failed",
