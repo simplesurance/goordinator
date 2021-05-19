@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"go.uber.org/zap"
+
+	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
 type Event struct {
@@ -26,7 +28,9 @@ func (e *Event) String() string {
 }
 
 func (e *Event) LogFields() []zap.Field {
-	fields := make([]zap.Field, 0, 6) // cap == max. size of fields we append
+	fields := make([]zap.Field, 0, 7) // cap == max. size of fields we append
+
+	fields = append(fields, logfields.EventProvider(e.Provider))
 
 	if e.DeliveryID != "" {
 		fields = append(fields, zap.String("github.delivery_id", e.DeliveryID))
