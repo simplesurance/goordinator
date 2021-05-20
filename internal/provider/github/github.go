@@ -136,10 +136,19 @@ func extractEventInfo(ghEvent interface{}) *provider.Event {
 	if v, ok := ghEvent.(pushEventRepoGetter); ok {
 		if repo := v.GetRepo(); repo != nil {
 			result.Repository = repo.GetName()
+
+			if owner := repo.GetOwner(); owner != nil {
+				result.RepositoryOwner = owner.GetLogin()
+			}
 		}
+
 	} else if v, ok := ghEvent.(repoGetter); ok {
 		if repo := v.GetRepo(); repo != nil {
 			result.Repository = repo.GetName()
+
+			if owner := repo.GetOwner(); owner != nil {
+				result.RepositoryOwner = owner.GetLogin()
+			}
 		}
 	}
 

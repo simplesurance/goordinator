@@ -14,11 +14,12 @@ type Event struct {
 
 	// Github hook fields, if the value is not available they are empty
 	// strings.
-	DeliveryID string
-	EventType  string
-	Repository string
-	CommitID   string
-	Branch     string
+	DeliveryID      string
+	EventType       string
+	RepositoryOwner string
+	Repository      string
+	CommitID        string
+	Branch          string
 	// PullRequestNr is 0 if it's not available
 	PullRequestNr int
 }
@@ -28,7 +29,7 @@ func (e *Event) String() string {
 }
 
 func (e *Event) LogFields() []zap.Field {
-	fields := make([]zap.Field, 0, 7) // cap == max. size of fields we append
+	fields := make([]zap.Field, 0, 8) // cap == max. size of fields we append
 
 	fields = append(fields, logfields.EventProvider(e.Provider))
 
@@ -40,6 +41,10 @@ func (e *Event) LogFields() []zap.Field {
 
 	if e.Repository != "" {
 		fields = append(fields, zap.String("github.repository", e.Repository))
+	}
+
+	if e.RepositoryOwner != "" {
+		fields = append(fields, zap.String("github.repository_owner", e.RepositoryOwner))
 	}
 
 	if e.CommitID != "" {
