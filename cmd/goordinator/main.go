@@ -328,7 +328,7 @@ func main() {
 	)
 
 	if config.HTTPListenAddr == "" && config.HTTPSListenAddr == "" {
-		logger.Warn("https_server_listen_addr and http_server_listen_addr configuration parameters are empty, not http server is started")
+		logger.Warn("https_server_listen_addr and http_server_listen_addr configuration parameters are empty, no http server is started")
 	}
 
 	if config.HTTPListenAddr != "" {
