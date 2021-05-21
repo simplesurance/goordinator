@@ -41,15 +41,15 @@ func (e *Event) LogFields() []zap.Field {
 	// EventType is not added as logfield, information is not needed
 
 	if e.Repository != "" {
-		fields = append(fields, zap.String("github.repository", e.Repository))
+		fields = append(fields, logfields.Repository(e.Repository))
 	}
 
 	if e.RepositoryOwner != "" {
-		fields = append(fields, zap.String("github.repository_owner", e.RepositoryOwner))
+		fields = append(fields, logfields.RepositoryOwner(e.RepositoryOwner))
 	}
 
 	if e.BaseBranch != "" {
-		fields = append(fields, zap.String("github.base_branch", e.BaseBranch))
+		fields = append(fields, logfields.BaseBranch(e.BaseBranch))
 	}
 
 	if e.CommitID != "" {
@@ -61,7 +61,7 @@ func (e *Event) LogFields() []zap.Field {
 	}
 
 	if e.PullRequestNr != 0 {
-		fields = append(fields, zap.Int("github.pull_request_nr", e.PullRequestNr))
+		fields = append(fields, logfields.PullRequest(e.PullRequestNr))
 	}
 
 	if e.Branch != "" {
