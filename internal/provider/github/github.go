@@ -141,7 +141,6 @@ func extractEventInfo(ghEvent interface{}) *provider.Event {
 				result.RepositoryOwner = owner.GetLogin()
 			}
 		}
-
 	} else if v, ok := ghEvent.(repoGetter); ok {
 		if repo := v.GetRepo(); repo != nil {
 			result.Repository = repo.GetName()
@@ -168,6 +167,10 @@ func extractEventInfo(ghEvent interface{}) *provider.Event {
 				// ref in PullRequestEvent contains **only**
 				// the branch name without 'refs/heads/ prefix
 				result.Branch = head.GetRef()
+			}
+
+			if base := pr.GetBase(); base != nil {
+				result.BaseBranch = base.GetRef()
 			}
 		}
 	}

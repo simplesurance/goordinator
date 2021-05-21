@@ -37,6 +37,7 @@ log_time_key = "time_iso8601"
 # # The following template strings are supported:
 # # - `{{ .Event.PullRequestNr }}`
 # # - `{{ .Event.PullRequestName }}`
+# # - `{{ .Event.BaseBranch }}`
 # # - `{{ .Event.Branch }}`
 # # - `{{ .Event.CommitID }}`
 # # - `{{ .Event.Repository }}`
