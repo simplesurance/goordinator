@@ -27,6 +27,7 @@ func TestHTTPHandlerEventParsing(t *testing.T) {
 		expectedPullRequestNumber int
 		expectedCommitID          string
 		expectedRepositoryOwner   string
+		expectedBaseBranch        string
 	}
 
 	testcases := []testcase{
@@ -41,6 +42,7 @@ func TestHTTPHandlerEventParsing(t *testing.T) {
 			expectedPullRequestNumber: 1,
 			expectedCommitID:          "8ad9dec4298f6b8f020997373cf4fe22005f2c06",
 			expectedRepositoryOwner:   "fho",
+			expectedBaseBranch:        "main",
 		},
 	}
 
@@ -67,6 +69,7 @@ func TestHTTPHandlerEventParsing(t *testing.T) {
 			assert.Equal(t, tc.expectedPullRequestNumber, event.PullRequestNr)
 			assert.Equal(t, tc.expectedCommitID, event.CommitID)
 			assert.Equal(t, tc.expectedRepositoryOwner, event.RepositoryOwner)
+			assert.Equal(t, tc.expectedBaseBranch, event.BaseBranch)
 		})
 	}
 }
