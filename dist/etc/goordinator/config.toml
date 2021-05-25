@@ -2,11 +2,17 @@
 https_server_listen_addr = ":8084"
 https_ssl_cert_file = ""
 https_ssl_key_file = ""
+
 # the local http and https endpoints that receives github webhook events
 github_webhook_endpoint = "/listener/github"
-github_webhook_secret=""
+github_webhook_secret = ""
+
+# GitHub API token, only required when github actions are defined
+# github_api_token = ""
+
 # Supported log formats: logfmt, console, json
 log_format = "logfmt"
+
 # The key that is used for logging the timestamp. If empty, timestamps will not
 # be included in log messages.
 log_time_key = "time_iso8601"
@@ -46,7 +52,7 @@ log_time_key = "time_iso8601"
 # # - `{{ .Event.DeliveryID }}`
 # # - `{{ .Event.Provider }}`
 #  [[rule.action]]
-#    # action type, only "httprequest" is supported
+#    The "httprequest" action sends a http-request. :-)
 #    action = "httprequest"
 #    # url to that the httprequest is send
 #    url = "https://circleci.com/api/v2/project/gh/goordinator/checks/pipeline"
@@ -64,8 +70,8 @@ log_time_key = "time_iso8601"
 #    '''
 #
 #  [[rule.action]]
-#    # action type, currently only "httprequest" is supported
-#    action = "httprequest"
-#    url = "https://myjenkins/view/CI/job/checks/view/change-requests/job/PR-{{ .Event.PullRequestNr }}/build"
-#    user = "fho"
-#    password = "<token>"
+#    "updatebranch" updates a GitHub Pull-Request with the changes from it's
+#    base-branch. The changes from the base branch are merged into the
+#    Pull-Request branch.
+#    Requires github_api_token to be defined.
+#    action = "updatebranch"

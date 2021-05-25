@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/simplesurance/goordinator/internal/cfg"
+	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/goordinator"
 	"github.com/simplesurance/goordinator/internal/logfields"
 	"github.com/simplesurance/goordinator/internal/provider/github"
@@ -283,15 +284,18 @@ func main() {
 	}
 
 	config := mustParseCfg()
-	rules, err := goordinator.RulesFromCfg(config)
+
+	mustInitLogger(config)
+
+	githubClient := githubclt.New(config.GithubAPIToken)
+
+	rules, err := goordinator.RulesFromCfg(config, githubClient)
 	exitOnErr(fmt.Sprintf("could not parse rules from configuration file: %s", *args.ConfigFile), err)
 
 	if len(rules) == 0 {
 		fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules\n", *args.ConfigFile)
 		os.Exit(1)
 	}
-
-	mustInitLogger(config)
 
 	logger.Info(
 		"loaded cfg file",

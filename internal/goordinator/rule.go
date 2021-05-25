@@ -12,8 +12,10 @@ import (
 	"github.com/itchyny/gojq"
 
 	"github.com/simplesurance/goordinator/internal/action"
+	"github.com/simplesurance/goordinator/internal/action/github"
 	"github.com/simplesurance/goordinator/internal/action/httprequest"
 	"github.com/simplesurance/goordinator/internal/cfg"
+	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/provider"
 	"github.com/simplesurance/goordinator/internal/stringutils"
 )
@@ -172,7 +174,7 @@ func (r *Rule) TemplateActions(ctx context.Context, event *provider.Event) ([]ac
 }
 
 // RulesFromCfg instantiates Rules from a rulesCfg configuration.
-func RulesFromCfg(cfg *cfg.Config) (Rules, error) {
+func RulesFromCfg(cfg *cfg.Config, ghClient *githubclt.Client) (Rules, error) {
 	result := make([]*Rule, 0, len(cfg.Rules))
 
 	for _, cfgRule := range cfg.Rules {
@@ -205,6 +207,10 @@ func RulesFromCfg(cfg *cfg.Config) (Rules, error) {
 					return nil, fmt.Errorf("rule %s: action %s: httprequest: parsing  failed: %w", cfgRule.Name, actionName, err)
 				}
 
+				actions = append(actions, cfg)
+
+			case "updatebranch":
+				cfg := github.NewUpdateBranchConfig(ghClient)
 				actions = append(actions, cfg)
 
 			default:
