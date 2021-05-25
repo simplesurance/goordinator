@@ -270,6 +270,14 @@ func mustInitLogger(config *cfg.Config) {
 	zap.ReplaceGlobals(logger)
 }
 
+func hide(in string) string {
+	if in == "" {
+		return in
+	}
+
+	return "**hidden**"
+}
+
 func main() {
 	defer panicHandler()
 
@@ -304,6 +312,8 @@ func main() {
 		zap.String("http_server_listen_addr", config.HTTPListenAddr),
 		zap.String("https_server_listen_addr", config.HTTPListenAddr),
 		zap.String("github_webhook_endpoint", config.HTTPGithubWebhookEndpoint),
+		zap.String("github_webhook_secret", hide(config.GithubWebHookSecret)),
+		zap.String("github_api_token", hide(config.GithubAPIToken)),
 		zap.String("log_format", config.LogFormat),
 		zap.String("log_time_key", config.LogTimeKey),
 		zap.String("rules", rules.String()),
