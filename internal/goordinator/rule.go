@@ -22,7 +22,7 @@ import (
 type ActionConfig interface {
 	// Template runs templateFn for all configuration options of the action
 	// that should be templated and returns a runnable action.
-	Template(templateFn func(string) (string, error)) (action.Runner, error)
+	Template(event *provider.Event, templateFn func(string) (string, error)) (action.Runner, error)
 	// String returns a short representation of the ActionConfig
 	String() string
 	// String returns a formatted detailed description.
@@ -160,7 +160,7 @@ func (r *Rule) TemplateActions(ctx context.Context, event *provider.Event) ([]ac
 			return out.String(), nil
 		}
 
-		runner, err := actionDef.Template(templFun)
+		runner, err := actionDef.Template(event, templFun)
 		if err != nil {
 			return nil, fmt.Errorf("templating action definition %q failed: %w", actionDef, err)
 		}
