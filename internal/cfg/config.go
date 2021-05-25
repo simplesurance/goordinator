@@ -14,6 +14,7 @@ type Config struct {
 	HTTPSKeyFile              string   `toml:"https_ssl_key_file"`
 	HTTPGithubWebhookEndpoint string   `toml:"github_webhook_endpoint"`
 	GithubWebHookSecret       string   `toml:"github_webhook_secret"`
+	GithubAPIToken            string   `toml:"github_api_token"`
 	LogFormat                 string   `toml:"log_format"`
 	LogTimeKey                string   `toml:"log_time_key"`
 	Rules                     []*Rules `toml:"rule"`
