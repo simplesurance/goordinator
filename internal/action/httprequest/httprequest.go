@@ -32,10 +32,6 @@ func NewRunner(cfg *Config) *Runner {
 	}
 }
 
-func (h *Runner) String() string {
-	return h.Config.String()
-}
-
 // Run sends the http request.
 // It returns an ErrorHTTPRequest if request related error happens.
 func (h *Runner) Run(ctx context.Context) error {
