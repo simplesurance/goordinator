@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/simplesurance/goordinator/internal/goorderr"
 	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
@@ -53,7 +54,7 @@ func (h *Runner) Run(ctx context.Context) error {
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		return err
+		return goorderr.NewRetryableAnytimeError(err)
 	}
 
 	defer resp.Body.Close()
@@ -68,10 +69,10 @@ func (h *Runner) Run(ctx context.Context) error {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &ErrorHTTPRequest{
+		return goorderr.NewRetryableAnytimeError(&ErrorHTTPRequest{
 			Body:   body,
 			Status: resp.StatusCode,
-		}
+		})
 	}
 
 	logger.Debug(
