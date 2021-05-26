@@ -62,7 +62,7 @@ func (clt *Client) BranchHeadCommitSHA(ctx context.Context, owner, repo string, 
 	})
 
 	if err != nil {
-		return "", clt.wrapRateLimitingErrors(err)
+		return "", clt.wrapRetryableErrors(err)
 	}
 
 	if len(resp) != 1 {
@@ -82,7 +82,7 @@ const (
 func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) (string, error) {
 	status, _, err := clt.clt.Repositories.GetCombinedStatus(ctx, owner, repo, ref, nil)
 	if err != nil {
-		return "", clt.wrapRateLimitingErrors(err)
+		return "", clt.wrapRetryableErrors(err)
 	}
 
 	switch s := status.GetState(); s {
@@ -101,7 +101,7 @@ func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) 
 func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullRequestNumber int) (isUptodate bool, headSHA string, err error) {
 	pr, _, err := clt.clt.PullRequests.Get(ctx, owner, repo, pullRequestNumber)
 	if err != nil {
-		return false, "", clt.wrapRateLimitingErrors(err)
+		return false, "", clt.wrapRetryableErrors(err)
 	}
 
 	base := pr.GetBase()
@@ -205,7 +205,7 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 			}
 		}
 
-		return false, clt.wrapRateLimitingErrors(err)
+		return false, clt.wrapRetryableErrors(err)
 	}
 
 	// github seems to always schedule update operations and return an
@@ -213,19 +213,24 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	return true, nil
 }
 
-func (clt *Client) wrapRateLimitingErrors(err error) error {
-	rateLimitErr, ok := err.(*github.RateLimitError)
-	if !ok {
-		return err
+func (clt *Client) wrapRetryableErrors(err error) error {
+	switch v := err.(type) {
+	case *github.RateLimitError:
+		clt.logger.Info(
+			"rate limit exceeded",
+			logfields.Event("github_api_rate_limit_exceeded"),
+			zap.Int("github_api_rate_limit", v.Rate.Limit),
+			zap.Int("github_api_rate_limit", v.Rate.Limit),
+			zap.Time("github_api_rate_limit_reset_time", v.Rate.Reset.Time),
+		)
+
+		return goorderr.NewRetryableError(err, v.Rate.Reset.Time)
+
+	case *github.ErrorResponse:
+		if v.Response.StatusCode >= 500 && v.Response.StatusCode < 600 {
+			return goorderr.NewRetryableAnytimeError(err)
+		}
 	}
 
-	clt.logger.Info(
-		"rate limit exceeded",
-		logfields.Event("github_api_rate_limit_exceeded"),
-		zap.Int("github_api_rate_limit", rateLimitErr.Rate.Limit),
-		zap.Int("github_api_rate_limit", rateLimitErr.Rate.Limit),
-		zap.Time("github_api_rate_limit_reset_time", rateLimitErr.Rate.Reset.Time),
-	)
-
-	return goorderr.NewRetryableError(err, rateLimitErr.Rate.Reset.Time)
+	return err
 }
