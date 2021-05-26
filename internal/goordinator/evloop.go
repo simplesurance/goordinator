@@ -2,15 +2,12 @@ package goordinator
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"go.uber.org/zap"
 
 	"github.com/simplesurance/goordinator/internal/action"
-	"github.com/simplesurance/goordinator/internal/action/httprequest"
 	"github.com/simplesurance/goordinator/internal/logfields"
 	"github.com/simplesurance/goordinator/internal/provider"
 )
@@ -29,8 +26,8 @@ type EvLoop struct {
 	rules  []*Rule
 
 	actionWg      sync.WaitGroup
-	shutdownChan  chan struct{}
 	actionDeferFn func()
+	retryer       *Retryer
 }
 
 // WithActionRoutineDeferFunc sets a function to be run when an go-routine that
@@ -46,9 +43,9 @@ func WithActionRoutineDeferFunc(fn func()) func(*EvLoop) {
 
 func NewEventLoop(rules []*Rule, opts ...func(*EvLoop)) *EvLoop {
 	evl := EvLoop{
-		ch:           make(chan *provider.Event, DefEventChannelBufferSize),
-		rules:        rules,
-		shutdownChan: make(chan struct{}, 1),
+		ch:      make(chan *provider.Event, DefEventChannelBufferSize),
+		rules:   rules,
+		retryer: NewRetryer(),
 	}
 
 	for _, opt := range opts {
@@ -145,111 +142,17 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, acti
 	e.actionWg.Add(1)
 
 	go func() {
-		var retryCount uint
-
 		if e.actionDeferFn != nil {
 			defer e.actionDeferFn()
 		}
 
 		defer e.actionWg.Done()
 
-		bo := backoff.NewExponentialBackOff()
-		bo.InitialInterval = 5 * time.Second
-		bo.MaxElapsedTime = DefRetryTimeout
-
-		ticker := backoff.NewTicker(bo)
-		defer ticker.Stop()
-
-		logger := e.logger.With(append(
-			event.LogFields(),
-			action.LogFields()...,
-		)...)
-
-		for {
-			select {
-			case _, channelOpen := <-ticker.C:
-				if !channelOpen {
-					logger.Warn(
-						"giving up retrying action execution, retry timeout expired",
-						logfields.Event("action_retry_timeout"),
-						logFieldActionResult("cancelled"),
-						zap.Uint("retry_count", retryCount),
-						zap.Duration("age", bo.GetElapsedTime()),
-						zap.Duration("max_age", bo.MaxElapsedTime),
-					)
-
-					return
-				}
-
-				logger := logger.With(zap.String("action", action.String()))
-
-				logger.Debug(
-					"running action",
-					logfields.Event("action_running"),
-					zap.Uint("retry_count", retryCount),
-					zap.Duration("age", bo.GetElapsedTime()),
-					zap.Duration("max_age", bo.MaxElapsedTime),
-				)
-
-				err := action.Run(ctx)
-				retryCount++
-				if err != nil {
-					var httpErr *httprequest.ErrorHTTPRequest
-
-					if errors.Is(err, context.Canceled) {
-						logger.Error(
-							"action cancelled",
-							logfields.Event("action_cancelled"),
-							logFieldActionResult("cancelled"),
-							zap.Error(err),
-						)
-						return
-					}
-
-					if errors.As(err, &httpErr) {
-						logger.Info(
-							"action failed",
-							logfields.Event("action_failed"),
-							logFieldActionResult("failure"),
-							zap.Int("http_response_code", httpErr.Status),
-							zap.ByteString("http_response_body", httpErr.Body),
-						)
-						continue
-					}
-
-					logger.Error(
-						"action failed",
-						logfields.Event("action_failed"),
-						logFieldActionResult("failure"),
-						zap.Error(err),
-					)
-					continue
-				}
-
-				logger.Info(
-					"action executed",
-					logfields.Event("action_executed_successfully"),
-					logFieldActionResult("success"),
-				)
-
-				return
-
-			case <-ctx.Done():
-				logger.Info(
-					"action execution cancelled",
-					logfields.Event("action_execution_cancelled"),
-					logFieldActionResult("cancelled"),
-				)
-				return
-
-			case <-e.shutdownChan:
-				logger.Info("evloop terminating, action was not executed",
-					logfields.Event("action_execution_cancelled_evloop_terminated"),
-					logFieldActionResult("cancelled"),
-				)
-			}
-
-		}
+		_ = e.retryer.Run(
+			ctx,
+			action.Run,
+			append(event.LogFields(), action.LogFields()...),
+		)
 	}()
 }
 
@@ -258,9 +161,14 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, acti
 // The event channel (Evloop.C()) will be closed.
 func (e *EvLoop) Stop() {
 	e.logger.Debug("event loop terminating", logfields.Event("eventloop_terminating"))
-
 	close(e.ch)
-	close(e.shutdownChan)
+
+	e.retryer.Stop()
+
+	e.logger.Debug(
+		"waiting for scheduled actions to terminate",
+		logfields.Event("eventloop_terminating"),
+	)
 	e.actionWg.Wait()
 
 	e.logger.Info("event loop terminated", logfields.Event("eventloop_terminated"))
