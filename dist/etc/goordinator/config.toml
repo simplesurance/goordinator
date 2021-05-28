@@ -1,4 +1,4 @@
-# http_server_listen_addr = ":8085"
+#http_server_listen_addr = ":8085"
 https_server_listen_addr = ":8084"
 https_ssl_cert_file = ""
 https_ssl_key_file = ""
@@ -7,8 +7,9 @@ https_ssl_key_file = ""
 github_webhook_endpoint = "/listener/github"
 github_webhook_secret = ""
 
-# GitHub API token, only required when github actions are defined
-# github_api_token = ""
+# GitHub API token, required when github actions are defined or autoupdate is
+# enabled.
+github_api_token = "my-secret-token"
 
 # Supported log formats: logfmt, console, json
 log_format = "logfmt"
@@ -17,61 +18,80 @@ log_format = "logfmt"
 # be included in log messages.
 log_time_key = "time_iso8601"
 
-# [[rule]]
-#  # identifier of the rule
-# name = "trigger-ci-jobs"
-#  # for which event source the rule applies, only "github" is
-#  # supported and is the default if not specified
-#  event_source = "github"
-#  # a JSON query (JQ) string that runs on the JSON representation of the event.
-#  # The result must be a single boolean value. If it's true the actions of the
-#  # rule are executed.
-#  # The JSON representation of github events, is the github webhook JSON event.
-#  filter_query = '''
-#.repository.name == "testrepo" and (
-#  .action == "synchronize" and ([.pull_request.labels[].name] | map(select(. == "ci")) | length) > 0
-#) or (
-#  .action == "labeled" and .label.name == "ci"
-#)
-#'''
-#
-# # Actions that are executed when the event_source and filter_query matches an
-# # event. All actions are run in parallel.
-# # They are retried until a timeout expires when their execution fails.
-# # All fields can contain template strings that are replaced with concrete
-# # information from the event.
-# # The following template strings are supported:
-# # - `{{ .Event.PullRequestNr }}`
-# # - `{{ .Event.PullRequestName }}`
-# # - `{{ .Event.BaseBranch }}`
-# # - `{{ .Event.Branch }}`
-# # - `{{ .Event.CommitID }}`
-# # - `{{ .Event.Repository }}`
-# # - `{{ .Event.RepositoryOwner }}`
-# # - `{{ .Event.EventType }}`
-# # - `{{ .Event.DeliveryID }}`
-# # - `{{ .Event.Provider }}`
-#  [[rule.action]]
-#    The "httprequest" action sends a http-request. :-)
-#    action = "httprequest"
-#    # url to that the httprequest is send
-#    url = "https://circleci.com/api/v2/project/gh/goordinator/checks/pipeline"
-#    # http basic auth user
-#    user = "<token>"
-#    # http basic auth password
-#    password = ""
-#    # http headers as a map
-#    headers = { "content-type" = "application/json" }
-#    # http request data
-#    data = '''
-#    {
-#      "branch": "pull/14380/head"
-#    }
-#    '''
-#
-#  [[rule.action]]
-#    "updatebranch" updates a GitHub Pull-Request with the changes from it's
-#    base-branch. The changes from the base branch are merged into the
-#    Pull-Request branch.
-#    Requires github_api_token to be defined.
-#    action = "updatebranch"
+# The autoupdater section configures a feature to automatically update GitHub
+# pull request branches with changes from their base branch, in a serialized
+# manner.
+# autoupdater.repository defines for which GitHub repositories the feature is
+# enabled.
+[[autoupdater.repository]]
+  # the GitHub login name of the subject owning the repository
+  owner = "simplesurance"
+  repository = "goordinator"
+
+# enqueue/dequeue a Pull-Request for autoupdates when one of the labels is added/removed
+autoupdater.trigger_labels = ["queue-add"]
+# enqueue/dequeue a Pull-Request for autoupdates when auto-merge is enabled
+# (https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
+autoupdater.trigger_on_auto_merge = true
+# local http server endpoint under which a minimal webinterface is served
+autoupdater.http_endpoint = "/autoupdater"
+
+# The rule section defines actions that are triggered by github-webhook-events.
+[[rule]]
+  # identifier of the rule
+  name = "trigger-ci-jobs"
+  # for which event source the rule applies, only "github" is
+  # supported and is the default if not specified
+  event_source = "github"
+  # a JSON query (JQ) string that runs on the JSON representation of the event.
+  # The result must be a single boolean value. If it's true the actions of the
+  # rule are executed.
+  # The JSON representation of github events, is the github webhook JSON event.
+  filter_query = '''
+.repository.name == "testrepo" and (
+  .action == "synchronize" and ([.pull_request.labels[].name] | map(select(. == "ci")) | length) > 0
+) or (
+  .action == "labeled" and .label.name == "ci"
+)
+'''
+
+ # Actions that are executed when the event_source and filter_query matches an
+ # event. All actions are run in parallel.
+ # They are retried until a timeout expires when their execution fails.
+ # All fields can contain template strings that are replaced with concrete
+ # information from the event.
+ # The following template strings are supported:
+ # - `{{ .Event.PullRequestNr }}`
+ # - `{{ .Event.PullRequestName }}`
+ # - `{{ .Event.BaseBranch }}`
+ # - `{{ .Event.Branch }}`
+ # - `{{ .Event.CommitID }}`
+ # - `{{ .Event.Repository }}`
+ # - `{{ .Event.RepositoryOwner }}`
+ # - `{{ .Event.EventType }}`
+ # - `{{ .Event.DeliveryID }}`
+ # - `{{ .Event.Provider }}`
+  [[rule.action]]
+   # The "httprequest" action sends a http-request. :-)
+   action = "httprequest"
+   # url to that the httprequest is send
+   url = "https://circleci.com/api/v2/project/gh/goordinator/checks/pipeline"
+   # http basic auth user
+   user = "<token>"
+   # http basic auth password
+   password = ""
+   # http headers as a map
+   headers = { "content-type" = "application/json" }
+   # http request data
+   data = '''
+   {
+     "branch": "pull/14380/head"
+   }
+   '''
+
+  [[rule.action]]
+    # updatebranch" updates a GitHub Pull-Request with the changes from it's
+    # base-branch. The changes from the base branch are merged into the
+    # Pull-Request branch.
+    # Requires github_api_token to be defined.
+    action = "updatebranch"

@@ -1,0 +1,908 @@
+package autoupdate
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/go-github/v35/github"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	github_prov "github.com/simplesurance/goordinator/internal/provider/github"
+
+	"github.com/simplesurance/goordinator/internal/githubclt"
+	"github.com/simplesurance/goordinator/internal/logfields"
+)
+
+const loggerName = "autoupdater"
+
+const defPeriodicTriggerInterval = 30 * time.Minute
+
+// GithubClient defines the methods of a GithubAPI Client that are used by the
+// autoupdate implementation.
+type GithubClient interface {
+	UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, error)
+	CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error)
+	CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error
+	ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator
+}
+
+// Retryer defines methods for running GithubClient operations repeately if
+// they fail with a temporary error.
+type Retryer interface {
+	Run(context.Context, func(context.Context) error, []zap.Field) error
+}
+
+// Autoupdater implements processing webhook events, querying the GitHub API
+// and enqueueing/dequeuing/triggering updating pull-requests with the
+// base-branch.
+// Pull-Request branch updates are serialized per base-branch.
+type Autoupdater struct {
+	triggerOnAutomerge bool
+	triggerLabels      map[string]struct{}
+	monitoredRepos     map[Repository]struct{}
+
+	// periodicTriggerIntv defines the time span between triggering
+	// updates for the first pull-request in the queues periodically.
+	periodicTriggerIntv time.Duration
+
+	ch     <-chan *github_prov.Event
+	logger *zap.Logger
+
+	// queues contains a queue for each base-branch for which Pull-Requests
+	// are queued for autoupdates.
+	queues map[BranchID]*queue
+	// queuesLock must be hold when accessing queues
+	queuesLock sync.Mutex
+
+	ghClient GithubClient
+	retryer  Retryer
+
+	// wg is a waitgroup for the event-loop go-routine.
+	wg sync.WaitGroup
+	// shutdownChan can be closed to communicate to the event-loop go-routine to terminate.
+	shutdownChan chan struct{}
+
+	// processedEventCnt counts the number of events that were processed.
+	// It is currently only used in testcase to delay checks until a send
+	// event was processed.
+	processedEventCnt atomic.Uint64
+}
+
+// Repository is a datastructure that uniquely identifies a GitHub Repository.
+type Repository struct {
+	OwnerLogin     string
+	RepositoryName string
+}
+
+func (r *Repository) String() string {
+	return fmt.Sprintf("%s/%s", r.OwnerLogin, r.RepositoryName)
+}
+
+// DryRun is an option for NewAutoupdater.
+// If it is enabled all GitHub API operation that could result in a change will
+// be simulated and always succeed.
+func DryRun(enabled bool) Opt {
+	return func(a *Autoupdater) {
+		if !enabled {
+			return
+		}
+
+		a.ghClient = NewDryGithubClient(a.ghClient, a.logger)
+		a.logger.Info("dry run enabled")
+	}
+}
+
+type Opt func(*Autoupdater)
+
+// NewAutoupdater creates an Autoupdater instance.
+// Only webhook events for repositories listed in monitoredRepositories are processed.
+// At least one trigger (triggerOnAutomerge or a label in triggerLabels) must
+// be provided to trigger enqueuing pull-requests for autoupdates via webhook events.
+// When multiple event triggers are configured, the autoupdater reacts on each
+// received Event individually.
+func NewAutoupdater(
+	ghClient GithubClient,
+	eventChan <-chan *github_prov.Event,
+	retryer Retryer,
+	monitoredRepositories []Repository,
+	triggerOnAutomerge bool,
+	triggerLabels []string,
+	opts ...Opt,
+) *Autoupdater {
+	repoMap := make(map[Repository]struct{}, len(monitoredRepositories))
+	for _, r := range monitoredRepositories {
+		repoMap[r] = struct{}{}
+	}
+
+	a := Autoupdater{
+		ghClient:            ghClient,
+		ch:                  eventChan,
+		logger:              zap.L().Named(loggerName),
+		queues:              map[BranchID]*queue{},
+		retryer:             retryer,
+		wg:                  sync.WaitGroup{},
+		triggerOnAutomerge:  triggerOnAutomerge,
+		triggerLabels:       toStrSet(triggerLabels),
+		monitoredRepos:      repoMap,
+		periodicTriggerIntv: defPeriodicTriggerInterval,
+		shutdownChan:        make(chan struct{}, 1),
+	}
+
+	for _, opt := range opts {
+		opt(&a)
+	}
+
+	return &a
+
+}
+
+// branchRefToRef returns ref without a leading refs/heads/ prefix.
+func branchRefToRef(ref string) string {
+	return strings.TrimPrefix(ref, "refs/heads/")
+}
+
+func ghBranchesAsStrings(branches []*github.Branch) []string {
+	result := make([]string, 0, len(branches))
+
+	for _, branch := range branches {
+		result = append(result, branch.GetName())
+	}
+
+	return result
+}
+
+var logFieldEventIgnored = logfields.Event("github_event_ignored")
+
+// isMonitoredRepository returns true if the repository is listed in the a.monitoredRepos.
+func (a *Autoupdater) isMonitoredRepository(owner, repositoryName string) bool {
+	repo := Repository{
+		OwnerLogin:     owner,
+		RepositoryName: repositoryName,
+	}
+
+	_, exist := a.monitoredRepos[repo]
+	return exist
+}
+
+// eventLoop receives GitHub webhook events from the eventChan and trigger
+// periodic update operations on the first element in the queues.
+// Updates are triggered periodically every a.periodicTriggerIntv, to prevent
+// that Pull-Requests became stuck because GitHub webhook event was missed.
+// The eventLoop terminates when a.shutdownChan is closed.
+func (a *Autoupdater) eventLoop() {
+	a.logger.Info("autoupdater event loop started")
+
+	periodicTrigger := time.NewTicker(a.periodicTriggerIntv)
+	defer periodicTrigger.Stop()
+
+	for {
+		select {
+		case event, open := <-a.ch:
+			if !open {
+				a.logger.Info("autoupdater event loop terminated")
+				return
+			}
+
+			a.processEvent(context.Background(), event)
+
+		case <-periodicTrigger.C:
+			a.queuesLock.Lock()
+			for _, q := range a.queues {
+				q.ScheduleUpdate(context.Background())
+				a.logger.Debug("periodic run scheduled", q.baseBranch.Logfields...)
+			}
+			a.queuesLock.Unlock()
+
+		case <-a.shutdownChan:
+			a.logger.Info("event loop terminating")
+			return
+		}
+	}
+}
+
+// processEvent processes GitHub webhook events.
+//
+// Only events for repositories listed in a.monitoredRepositories are
+// processed.
+// auto_merge_enabled/auto_merge_disabled events are only processed when
+// a.triggerOnAutomergeis enabled.
+// labeled/unlabeled events are only processed if the label is listed in
+// a.triggerLabels.
+//
+// The following actions are triggered on events:
+//
+//  - Enqueue a Pull-Request on:
+//    - PullRequestEvent auto_merge_enabled
+//    - PullRequestEvent labeled
+//
+//  - Dequeue a Pull-Request on:
+//    - PullRequestEvent closed
+//    - PullRequestEvent auto_merge_disabled
+//    - PullRequestEvent unlabeled
+//
+//  - Move a Pull-Request to another base branch queue on:
+//    - PullRequestEvent edited and Base object is set
+//
+//  - Resume updates for a suspended Pull-Request on:
+//    - PullRequestEvent synchronize for the pr branch
+//    - PushEvent for it's base-branch
+//    - StatusEvent with success state and the combined status for PullRequest is successful
+//
+//  - Suspend updates for a Pull-Request on:
+//    - StatusEvent with error or failure state
+//
+//  - Trigger update with base-branch on:
+//    - PushEvent for a base branch
+//    - (updates for Pull-Request branches on git-push are triggered via
+//       PullRequest synchronize events)
+//
+// Other events are ignored and a debug message is logged for those.
+func (a *Autoupdater) processEvent(ctx context.Context, event *github_prov.Event) {
+	defer a.processedEventCnt.Inc()
+
+	logger := a.logger.With(event.LogFields...)
+
+	switch ev := event.Event.(type) {
+	case *github.PullRequestEvent:
+		if !a.isMonitoredRepository(ev.GetRepo().GetOwner().GetLogin(), ev.GetRepo().GetName()) {
+			logger.Debug(
+				"event is for unmonitored repository",
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+		a.processPullRequestEvent(ctx, logger, ev)
+
+	case *github.PushEvent:
+		if !a.isMonitoredRepository(ev.GetRepo().GetOwner().GetLogin(), ev.GetRepo().GetName()) {
+			logger.Debug(
+				"event is for repository that is not monitored",
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+		a.processPushEvent(ctx, logger, ev)
+
+	case *github.StatusEvent:
+		if !a.isMonitoredRepository(ev.GetRepo().GetOwner().GetLogin(), ev.GetRepo().GetName()) {
+			logger.Debug(
+				"event is for repository that is not monitored",
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+		a.processStatusEvent(ctx, logger, ev)
+
+	default:
+		logger.Debug("event ignored", logFieldEventIgnored)
+	}
+}
+
+// logError logs an error with the given message and fields.
+// If the error is of type ErrNotFound or ErrAlreadyExists the message is
+// logged with Info priority, otherwise with Error priority.
+func logError(logger *zap.Logger, msg string, err error, fields ...zapcore.Field) {
+	fields = append([]zapcore.Field{zap.Error(err)}, fields...)
+
+	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrAlreadyExists) {
+		logger.Info(msg, fields...)
+		return
+	}
+
+	logger.Error(msg, fields...)
+}
+
+func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.Logger, ev *github.PullRequestEvent) {
+	owner := ev.GetRepo().GetOwner().GetLogin()
+	repo := ev.GetRepo().GetName()
+	baseBranch := ev.GetPullRequest().GetBase().GetRef()
+
+	prNumber := ev.GetNumber()
+	// does not have the `refs/heads` prefix:
+	branch := ev.GetPullRequest().GetHead().GetRef()
+
+	logger = logger.With(
+		logfields.RepositoryOwner(owner),
+		logfields.Repository(repo),
+		logfields.Branch(branch),
+		logfields.PullRequest(prNumber),
+		zap.String("github.pull_request_event.action", ev.GetAction()),
+	)
+
+	logger.Debug("event received")
+
+	switch ev.GetAction() {
+	// TODO: If a Pull-Request is opened and in the open-dialog is
+	// already the applied, will we receive a label-add event? Or do we
+	// also have to monitor Open-Events for PRs that have the label already?
+
+	case "auto_merge_enabled":
+		if !a.triggerOnAutomerge {
+			logger.Debug(
+				"event ignored, triggerOnAutomerge is disabled",
+				logFieldEventIgnored,
+			)
+			return
+		}
+
+		bb, err := NewBaseBranch(owner, repo, baseBranch)
+		if err != nil {
+			logger.Warn(
+				"ignoring event, incomplete base branch information",
+				logFieldEventIgnored,
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		pr, err := NewPullRequest(prNumber, branch)
+		if err != nil {
+			logger.Warn(
+				"ignoring event, incomplete pull-request information",
+				logFieldEventIgnored,
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		if err := a.Enqueue(ctx, bb, pr); err != nil {
+			logError(
+				logger,
+				"ignoring event, could not append pull-request to queue",
+				err,
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+	case "labeled":
+		labelName := ev.GetLabel().GetName()
+		logger = logger.With(zap.String("github.label_name", labelName))
+
+		if ev.GetPullRequest().GetState() == "closed" {
+			logger.Warn(
+				"ignoring event, label was added to a closed pull-request",
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+		if labelName == "" {
+			logger.Warn(
+				"ignoring event, event with action 'labeled' has empty label name",
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+		if _, exist := a.triggerLabels[labelName]; !exist {
+			return
+		}
+
+		bb, err := NewBaseBranch(owner, repo, baseBranch)
+		if err != nil {
+			logger.Warn(
+				"ignoring event, incomplete base branch information",
+				logFieldEventIgnored,
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		pr, err := NewPullRequest(prNumber, branch)
+		if err != nil {
+			logError(
+				logger,
+				"ignoring event, incomplete pull-request information",
+				err,
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+		if err := a.Enqueue(ctx, bb, pr); err != nil {
+			logger.Error(
+				"ignoring event, enqueing pull-request failed",
+				logFieldEventIgnored,
+				zap.Error(err),
+			)
+
+			return
+		}
+
+	case "auto_merge_disabled":
+		if !a.triggerOnAutomerge {
+			logger.Debug(
+				"event ignored, triggerOnAutomerge is disabled",
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+		fallthrough
+	case "closed":
+		bb, err := NewBaseBranch(owner, repo, baseBranch)
+		if err != nil {
+			logger.Warn(
+				"ignoring event, incomplete base branch information",
+				logFieldEventIgnored,
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		pr, err := NewPullRequest(prNumber, branch)
+		if err != nil {
+			logger.Warn(
+				"ignoring event, incomplete pull-request information",
+				logFieldEventIgnored,
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		_, err = a.Dequeue(ctx, bb, pr.Number)
+		if err != nil {
+			logError(
+				logger,
+				"ignoring event, disabling updates for pr failed",
+				err,
+				logFieldEventIgnored,
+			)
+			return
+		}
+
+	case "unlabeled":
+		labelName := ev.GetLabel().GetName()
+		logger = logger.With(zap.String("github.label_name", labelName))
+
+		if labelName == "" {
+			logger.Warn(
+				"ignoring event, event with action 'unlabeled' has empty label name",
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+		if _, exist := a.triggerLabels[labelName]; !exist {
+			return
+		}
+
+		bb, err := NewBaseBranch(owner, repo, baseBranch)
+		if err != nil {
+			logger.Warn(
+				"ignoring event, incomplete base branch information",
+				logFieldEventIgnored,
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		pr, err := NewPullRequest(prNumber, branch)
+		if err != nil {
+			logger.Warn(
+				"ignoring event, incomplete pull-request information",
+				logFieldEventIgnored,
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		_, err = a.Dequeue(ctx, bb, pr.Number)
+		if err != nil {
+			logError(logger, "ignoring event, disabling updates for pr failed", err)
+
+			return
+		}
+
+	case "synchronize":
+		bb, err := NewBaseBranch(owner, repo, baseBranch)
+		if err != nil {
+			logger.Warn(
+				"can not resume PRs, incomplete base branch information",
+				zap.Error(err),
+				logFieldEventIgnored,
+			)
+
+			return
+		}
+
+		a.TriggerUpdateIfFirst(ctx, bb, prNumber)
+
+		err = a.Resume(ctx, bb, prNumber)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				logger.Debug("no pull-requests suspended for the base branch")
+				return
+			}
+
+			logger.Error("resuming updates for prs failed", zap.Error(err))
+
+			return
+		}
+
+		return
+
+	case "edited":
+		changes := ev.GetChanges()
+		if changes == nil || changes.Base == nil || changes.Base.Ref.From == nil {
+			return
+		}
+
+		oldBaseBranch, err := NewBaseBranch(owner, repo, *changes.Base.Ref.From)
+		if err != nil {
+			logger.Warn(
+				"ignoring event, incomple old base branch information",
+				logFieldEventIgnored,
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		bb, err := NewBaseBranch(owner, repo, baseBranch)
+		if err != nil {
+			logger.Warn(
+				"can not enqueue PR after base branch change, incomplete new base branch information",
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		if err := a.ChangeBaseBranch(ctx, oldBaseBranch, bb, prNumber); err != nil {
+			logError(logger, "changing base branch failed", err)
+			return
+		}
+
+		logger.Info("base branch of PR changed, moved PR to new base-branch queue")
+
+	default:
+		logger.Debug("ignoring irrelevant pull-request event",
+			logFieldEventIgnored,
+		)
+	}
+}
+
+func (a *Autoupdater) processPushEvent(ctx context.Context, logger *zap.Logger, ev *github.PushEvent) {
+	// The changed branch could be a base-branch for other
+	// PRs or a branch that is queued for autoupdates
+	// itself.
+	branch := branchRefToRef(ev.GetRef())
+	owner := ev.GetRepo().GetOwner().GetLogin()
+	repo := ev.GetRepo().GetName()
+
+	logger = logger.With(
+		logfields.Branch(branch),
+		logfields.RepositoryOwner(owner),
+		logfields.Repository(repo),
+	)
+
+	logger.Debug("event received")
+
+	bb, err := NewBaseBranch(owner, repo, branch)
+	if err != nil {
+		logger.Warn(
+			"ignoring event, incomplete branch information",
+			logFieldEventIgnored,
+			zap.Error(err),
+		)
+
+		return
+	}
+	if err := a.UpdateBranch(ctx, bb); err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			logger.Error(
+				"triggering updates for pr failed",
+				zap.Error(err),
+				logFieldEventIgnored,
+			)
+		}
+	}
+
+	a.ResumeAllForBaseBranch(ctx, bb)
+}
+
+func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger, ev *github.StatusEvent) {
+	branches := ghBranchesAsStrings(ev.Branches)
+	owner := ev.GetRepo().GetOwner().GetLogin()
+	repo := ev.GetRepo().GetName()
+	// TODO: ensure owner and repo are not empty
+
+	logger = logger.With(
+		zap.Strings("git.branches", branches),
+		logfields.RepositoryOwner(owner),
+		logfields.Repository(repo),
+	)
+
+	logger.Debug("event received")
+
+	if len(branches) == 0 {
+		logger.Warn(
+			"ignorning event, branch field is empty",
+			logFieldEventIgnored,
+		)
+
+		return
+	}
+
+	switch ev.GetState() {
+	case "error", "failure":
+		err := a.SuspendUpdates(ctx, owner, repo, branches)
+		if len(err) != 0 {
+			logger.Error("suspending updates failed", zap.Errors("errors", err))
+		}
+
+	case "success":
+		a.ResumeIfStatusIsSuccess(ctx, owner, repo, branches)
+
+	default:
+		logger.Debug("ignoring event with unknown or not relevant status",
+			logFieldEventIgnored,
+			zap.String("github.status_event.state", ev.GetState()),
+		)
+	}
+}
+
+// Enqueue appends the Pull-Request to the autoupdate queue for baseBranch.
+// When it becomes the first element in the queue, it will be kept uptodate with it's baseBranch.
+// If the pr is already enqueued a ErrAlreadyExists error is returned.
+//
+// If no queue for the baseBranch exist, it will be created.
+func (a *Autoupdater) Enqueue(ctx context.Context, baseBranch *BaseBranch, pr *PullRequest) error {
+	var q *queue
+	var exist bool
+
+	logger := a.logger.With(baseBranch.Logfields...).With(pr.LogFields...)
+
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	q, exist = a.queues[baseBranch.BranchID]
+	if !exist {
+		q = newQueue(
+			baseBranch,
+			a.logger,
+			a.ghClient,
+			a.retryer,
+		)
+
+		a.queues[baseBranch.BranchID] = q
+		logger.Debug("queue for base branch created",
+			logfields.Event("update_queue_created"),
+		)
+	}
+
+	return q.Enqueue(pr)
+}
+
+// Dequeue removes the Pull-Request with number prNumber from the autoupdate queue of baseBranch.
+// This disables keeping the pull-request update with baseBranch.
+// If no Pull-Request is queued with prNumber a ErrNotFound error is returned.
+//
+// If the Pull-Request was the only element in the baseBranch queue, the queue is removed.
+func (a *Autoupdater) Dequeue(ctx context.Context, baseBranch *BaseBranch, prNumber int) (*PullRequest, error) {
+	var q *queue
+	var exist bool
+
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	q, exist = a.queues[baseBranch.BranchID]
+	if !exist {
+		return nil, fmt.Errorf("no queue for base branch exist: %w", ErrNotFound)
+	}
+
+	pr, err := q.Dequeue(prNumber)
+	if err != nil {
+		return nil, fmt.Errorf("disabling updates for pr failed: %w", err)
+	}
+
+	if q.IsEmpty() {
+		delete(a.queues, baseBranch.BranchID)
+		logger := a.logger.With(pr.LogFields...).With(baseBranch.Logfields...)
+		logger.Debug("empty queue for base branch removed")
+	}
+
+	return pr, nil
+}
+
+// ResumeAllForBaseBranch resumes updates for all Pull Requests that are based
+// on baseBranch and for which updates are currently suspended.
+func (a *Autoupdater) ResumeAllForBaseBranch(ctx context.Context, baseBranch *BaseBranch) {
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	for bbID, q := range a.queues {
+		if bbID == baseBranch.BranchID {
+			q.ResumeAll()
+		}
+	}
+}
+
+// SuspendUpdates suspend updates for all Pull Requests that are queued and
+// their branch name matches one of branchNames.
+func (a *Autoupdater) SuspendUpdates(ctx context.Context, owner, repo string, branchNames []string) []error {
+	var errors []error
+
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	for baseBranch, q := range a.queues {
+		if baseBranch.Repository != repo || baseBranch.RepositoryOwner != owner {
+			continue
+		}
+		prs := q.ActivePRsByBranch(branchNames)
+		for _, pr := range prs {
+			err := q.Suspend(pr.Number)
+			if err != nil {
+				errors = append(errors, fmt.Errorf(
+					"suspending updates for pr %d, base branch: %q failed: %w",
+					pr.Number, baseBranch, err,
+				))
+			}
+		}
+
+	}
+
+	return errors
+}
+
+// ResumeIfStatusIsSuccess resumes updating for queued Pull-Requests of the given branch
+// names, if updates for it are currently suspended and the GitHub API returns
+// a combined successful check status.
+func (a *Autoupdater) ResumeIfStatusIsSuccess(ctx context.Context, owner, repo string, branchNames []string) {
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	for baseBranch, q := range a.queues {
+		if baseBranch.Repository != repo || baseBranch.RepositoryOwner != owner {
+			continue
+		}
+
+		prs := q.SuspendedPRsbyBranch(branchNames)
+		for _, pr := range prs {
+			q.ScheduleResumePRIfStatusSuccessful(ctx, pr)
+		}
+	}
+}
+
+// Resume resumes updates for a pull-request.
+// If the pull-request is not queued for updates and in suspended state
+// ErrNotFound is returned.
+func (a *Autoupdater) Resume(ctx context.Context, baseBranch *BaseBranch, prNumber int) error {
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	q, exist := a.queues[baseBranch.BranchID]
+	if !exist {
+		return ErrNotFound
+	}
+
+	return q.Resume(prNumber)
+}
+
+// UpdateBranch triggers updating the first PR queued for updates for the given
+// baseBranch.
+//
+// See documentation on queue for more information.
+func (a *Autoupdater) UpdateBranch(ctx context.Context, baseBranch *BaseBranch) error {
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	q, exist := a.queues[baseBranch.BranchID]
+	if !exist {
+		return ErrNotFound
+	}
+
+	q.ScheduleUpdate(ctx)
+	return nil
+}
+
+// ChangeBaseBranch dequeues a Pull Request from the queue oldBaseBranch and
+// enqueues it at the queue for newBaseBranch.
+func (a *Autoupdater) ChangeBaseBranch(
+	ctx context.Context,
+	oldBaseBranch, newBaseBranch *BaseBranch,
+	prNumber int,
+) error {
+	pr, err := a.Dequeue(ctx, oldBaseBranch, prNumber)
+	if err != nil {
+		return fmt.Errorf("could not remove pr from queue for old base branch: %w", err)
+	}
+
+	if err := a.Enqueue(ctx, newBaseBranch, pr); err != nil {
+		return fmt.Errorf("could not enqueue in queue for new base branch: %w", err)
+
+	}
+
+	return nil
+}
+
+// ScheduleUpdateFirstPR schedules the update operation for the first
+// pull-request in the queue.
+func (a *Autoupdater) TriggerUpdateIfFirst(
+	ctx context.Context,
+	baseBranch *BaseBranch,
+	prNumber int,
+) {
+	logger := a.logger.With(baseBranch.Logfields...).With(logfields.PullRequest(prNumber))
+
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	q, exist := a.queues[baseBranch.BranchID]
+	if !exist {
+		return
+	}
+
+	// there is a chance of a race here, the pr might not be first anymore
+	// when ScheduleUpdateFirstPR() is called, this does not matter, if it
+	// happens we run the operation one more time then necessary.
+	first := q.FirstActive()
+	if first == nil || first.Number != prNumber {
+		logger.Debug("update not trigger, pr is not first in queue")
+	}
+
+	q.ScheduleUpdate(ctx)
+}
+
+// Start starts the event-loop in a go-routine.
+// The event-loop reads events from the eventChan and processes them.
+func (a *Autoupdater) Start() {
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		a.eventLoop()
+	}()
+}
+
+// Stop stops the event-loop and waits until it terminates.
+// All queues will be deleted, operations that are in progress will be canceled.
+func (a *Autoupdater) Stop() {
+	a.logger.Debug("autoupdater terminating")
+
+	select {
+	case <-a.shutdownChan: // already closed
+	default:
+		close(a.shutdownChan)
+	}
+
+	a.logger.Debug("waiting for event-loop to terminate")
+	a.wg.Wait()
+
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	for branchID, q := range a.queues {
+		q.Stop()
+		delete(a.queues, branchID)
+	}
+
+	a.logger.Debug("autoupdater terminated")
+}

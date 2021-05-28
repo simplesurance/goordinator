@@ -2,12 +2,45 @@
 
 ## Introduction
 
-Goordinator listens for GitHub webhook events, runs their JSON payloads through
-a JQ filter query and triggers actions if the filter matches.
+Goordinator is an event-processor for GitHub events.
+It provides 2 functionalities.
 
-The only supported action is currently posting HTTP-Requests.
+### Configurable Event-Trigger Loop
+
+Goordinator can listen for GitHub webhook events, runs their JSON payloads
+through a JQ filter query and triggers actions if the filter matches.
+The supported actions are:
+- posting a http-request
+- updating a GitHub branch with it's base branch.
+
 All actions are executed in parallel and retried if they fail until a retry
 timeout expired (default: 2h).
+
+### Serialized GitHub Branch Autoupdater
+
+Autoupdate keeps Pull-Requests (PR) updated with their base-branch.
+Pull-Requests are added to a per base-branch-queue and the first pull-request in
+the queue is kept uptodate with it's base-branch.
+If merging the base-branch into the PR branch fails, it's check status becomes
+negative or the PR became stale, updates for it are suspended.
+Updates for it are resumed when the base-branch or the PR branch changed or the
+check status of the PR became positive.
+
+Autoupdate is used together with [Github's auto-merge
+feature](https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
+or a comparable service to provide a serialized merge-queue.
+The autoupdater serializes updates per base-branch, to avoid a race between
+pull-requests to get updates the fastest and have a successful CI check first.
+
+Without an external auto-merge service the autoupdater is useless.
+
+#### Required GitHub Setup
+
+Configure your GitHub Repository to:
+
+- Enable auto-merge
+- Require >=1 status checks to pass before merging
+- Require branches to be up to date before merging
 
 ## Installation as systemd Service
 
