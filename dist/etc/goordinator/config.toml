@@ -17,6 +17,30 @@ log_format = "logfmt"
 # be included in log messages.
 log_time_key = "time_iso8601"
 
+# Autoupdate keeps keep Github Pull-Requests (PR) updated with their base-branch.
+# Pull-Requests that are kept uptodate are kept in a queue, only the first
+# element is updated.
+# If a Pull-Request is closed it is enqueued. If the base-branch can not be
+# merged automatically into the PR branch because of a merge-conflict or the CI
+# Status checks are failure or error, the PR is suspended and it is moved out of
+# the queue.  pull-requests are
+[autoupdate]
+  # enqueue a Pull-Requests when automerge was enabled for it
+  # trigger_on_auto_merge = false
+
+  # when a PR has one of the labels, it is enqueued for autoupdates
+  # trigger_labels = []
+
+  # if defined, goordinator will serve a minimal web-interface to interact with
+  # the autoupdater under this endpoint
+  # http_endpoint = "/autoupdate"
+
+  # Github repositories for that the automerge functionality is enabled
+  [[autoupdate.repository]]
+    # owner = ""
+    # repository = ""
+
+
 # [[rule]]
 #  # identifier of the rule
 # name = "trigger-ci-jobs"

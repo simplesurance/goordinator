@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/simplesurance/goordinator/internal/autoupdate"
 	"github.com/simplesurance/goordinator/internal/cfg"
 	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/goordinator"
@@ -29,7 +30,7 @@ var logger *zap.Logger
 // Version is set via and ldflag on compilation
 var Version = "unknown"
 
-const EventChannelBufferSize = 512
+const EventChannelBufferSize = 1024
 
 func exitOnErr(msg string, err error) {
 	if err == nil {
@@ -280,6 +281,53 @@ func hide(in string) string {
 	return "**hidden**"
 }
 
+func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Client, mux *http.ServeMux) chan<- *github.Event {
+	if !config.PullRequestUpdater.TriggerOnAutoMerge && len(config.PullRequestUpdater.Labels) == 0 {
+		logger.Info(
+			"github pull-request updater is disabled, trigger_on_auto_merge is false and trigger_labels in config is empty",
+			logfields.Event("autoupdater_disabled"),
+		)
+
+		return nil
+	}
+	if len(config.PullRequestUpdater.Repositories) == 0 {
+		logger.Info("github pull-request updater is disabled, repository list in config is empty")
+		return nil
+
+	}
+	repos := make([]autoupdate.Repository, 0, len(config.PullRequestUpdater.Repositories))
+	for _, r := range config.PullRequestUpdater.Repositories {
+		repos = append(repos, autoupdate.Repository{
+			Owner:          r.Owner,
+			RepositoryName: r.RepositoryName,
+		})
+	}
+
+	ch := make(chan *github.Event, EventChannelBufferSize)
+
+	autoupdater := autoupdate.NewAutoupdater(
+		githubClient,
+		ch,
+		goordinator.NewRetryer(),
+		repos,
+		config.PullRequestUpdater.TriggerOnAutoMerge,
+		config.PullRequestUpdater.Labels,
+	)
+	autoupdater.Start()
+
+	if config.PullRequestUpdater.Endpoint != "" {
+		mux.HandleFunc(config.PullRequestUpdater.Endpoint, autoupdater.HTTPHandlerList)
+
+		logger.Info(
+			"registered github pull-request autoupdater http endpoint",
+			logfields.Event("autoupdater_http_handler_registered"),
+			zap.String("endpoint", config.PullRequestUpdater.Endpoint),
+		)
+	}
+
+	return ch
+}
+
 func main() {
 	defer panicHandler()
 
@@ -302,11 +350,6 @@ func main() {
 	rules, err := goordinator.RulesFromCfg(config, githubClient)
 	exitOnErr(fmt.Sprintf("could not parse rules from configuration file: %s", *args.ConfigFile), err)
 
-	if len(rules) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules\n", *args.ConfigFile)
-		os.Exit(1)
-	}
-
 	logger.Info(
 		"loaded cfg file",
 		logfields.Event("cfg_loaded"),
@@ -318,25 +361,51 @@ func main() {
 		zap.String("github_api_token", hide(config.GithubAPIToken)),
 		zap.String("log_format", config.LogFormat),
 		zap.String("log_time_key", config.LogTimeKey),
+		zap.Bool("autoupdater.trigger_on_auto_merge", config.PullRequestUpdater.TriggerOnAutoMerge),
+		zap.Strings("autoupdater.labels", config.PullRequestUpdater.Labels),
+		zap.Any("autoupdater.repositories", config.PullRequestUpdater.Repositories),
+		zap.String("autoupdater.http_endpoint", config.PullRequestUpdater.Endpoint),
 		zap.String("rules", rules.String()),
 	)
 
 	goodbye.Register(func(_ context.Context, sig os.Signal) {
 		logger.Info(fmt.Sprintf("terminating, received signal %s", sig.String()))
 	})
-	evLoopchan := make(chan *github.Event, EventChannelBufferSize)
+
+	var chans []chan<- *github.Event
+
+	mux := http.NewServeMux()
+
+	if ch := startPullRequestAutoupdater(config, githubClient, mux); ch != nil {
+		chans = append(chans, ch)
+	}
+
+	if len(rules) > 0 {
+		evLoopchan := make(chan *github.Event, EventChannelBufferSize)
+		chans = append(chans, evLoopchan)
+
+		evLoop := goordinator.NewEventLoop(
+			evLoopchan,
+			rules,
+			goordinator.WithActionRoutineDeferFunc(panicHandler),
+		)
+		go evLoop.Start()
+	} else {
+		logger.Debug("No rules defined, event-loop is not started",
+			logfields.Event("event_loop_not_started"),
+		)
+	}
+
+	if len(chans) == 0 {
+		fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules or enables the branch autoupdater \n", *args.ConfigFile)
+		os.Exit(1)
+	}
+
 	gh := github.New(
-		[]chan<- *github.Event{evLoopchan},
+		chans,
 		github.WithPayloadSecret(config.GithubWebHookSecret),
 	)
 
-	evLoop := goordinator.NewEventLoop(
-		evLoopchan,
-		rules,
-		goordinator.WithActionRoutineDeferFunc(panicHandler),
-	)
-
-	mux := http.NewServeMux()
 	mux.HandleFunc(config.HTTPGithubWebhookEndpoint, gh.HTTPHandler)
 	logger.Debug(
 		"registered github webhook event handler",
@@ -368,5 +437,6 @@ func main() {
 		)
 	})
 
-	evLoop.Start()
+	select {} // TODO: refactor this, allow clean shutdown
+
 }

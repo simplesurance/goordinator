@@ -22,10 +22,6 @@ func Commit(val string) zap.Field {
 	return zap.String("git.commit", val)
 }
 
-func GithubWebhookEventName(val string) zap.Field {
-	return zap.String("github.webhook_event", val)
-}
-
 func Branch(val string) zap.Field {
 	return zap.String("git.branch", val)
 }
