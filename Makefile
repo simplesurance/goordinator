@@ -50,7 +50,18 @@ dirty_worktree_check:
 		exit 1; \
 		fi
 
+.PHONY: gen_mocks
+gen_mocks:
+	$(info * generating mock code)
+	mockgen -package mocks -source internal/autoupdate/autoupdate.go -destination internal/autoupdate/mocks/autoupdate.go
+	mockgen -package mocks -source internal/githubclt/client.go -destination internal/autoupdate/mocks/githubclient.go
+
 .PHONY: check
 check:
 	$(info * running static code checks)
 	@golangci-lint run
+
+.PHONY: test
+test:
+	$(info * running tests)
+	@go test -race ./...

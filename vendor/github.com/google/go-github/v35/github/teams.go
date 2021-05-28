@@ -34,7 +34,7 @@ type Team struct {
 
 	// Permissions identifies the permissions that a team has on a given
 	// repository. This is only populated when calling Repositories.ListTeams.
-	Permissions *map[string]bool `json:"permissions,omitempty"`
+	Permissions map[string]bool `json:"permissions,omitempty"`
 
 	// Privacy identifies the level of privacy this team should have.
 	// Possible values are:
@@ -71,6 +71,8 @@ type Invitation struct {
 	Inviter           *User      `json:"inviter,omitempty"`
 	TeamCount         *int       `json:"team_count,omitempty"`
 	InvitationTeamURL *string    `json:"invitation_team_url,omitempty"`
+	FailedAt          *Timestamp `json:"failed_at,omitempty"`
+	FailedReason      *string    `json:"failed_reason,omitempty"`
 }
 
 func (i Invitation) String() string {

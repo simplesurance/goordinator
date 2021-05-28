@@ -2,12 +2,51 @@
 
 ## Introduction
 
-Goordinator listens for GitHub webhook events, runs their JSON payloads through
-a JQ filter query and triggers actions if the filter matches.
+Goordinator is an event-processor for GitHub events.
+It provides 2 functionalities.
 
-The only supported action is currently posting HTTP-Requests.
+### Configurable Event-Trigger Loop
+
+Goordinator listens for GitHub webhook events, runs their JSON payloads
+through a JQ filter query and triggers actions if the filter matches.
+The supported actions are:
+- posting a http-request
+- updating a GitHub branch with its base branch.
+
 All actions are executed in parallel and retried if they fail until a retry
 timeout expired (default: 2h).
+
+### Serialized Synchronization of GitHub Pull Request with their Base Branch
+
+Autoupdater keeps pull requests (PR) updated with their base branch. \
+Pull requests are added to a per base branch queue and the first pull request in
+the queue is kept up to date with its base branch. \
+Updates for the PR branch are suspended when:
+
+- the base-branch can not be merged into the PR branch because of a
+  merge-conflict,
+- its GitHub check status becomes negative or
+- it became stale and its status have not changed for a longer time period.
+
+Updates for it are resumed when:
+- the PR or its base branch changed
+- the PR's status(es) check(s) became positive.
+
+Autoupdater is used together with [Githubs auto-merge
+feature](https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
+or a comparable service to provide a serialized merge-queue.
+The autoupdater serializes updates per base branch, to avoid a race between
+pull requests to get updates the fastest and have a successful CI check first.
+
+Without an external auto-merge service the autoupdater is useless.
+
+#### Required GitHub Setup
+
+Configure your GitHub Repository to:
+
+- Enable auto-merge
+- Require >=1 status checks to pass before merging
+- Require branches to be up to date before merging
 
 ## Installation as systemd Service
 

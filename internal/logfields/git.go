@@ -21,3 +21,7 @@ func BaseBranch(val string) zap.Field {
 func Commit(val string) zap.Field {
 	return zap.String("git.commit", val)
 }
+
+func Branch(val string) zap.Field {
+	return zap.String("git.branch", val)
+}

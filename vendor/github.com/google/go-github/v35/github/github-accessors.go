@@ -4028,6 +4028,14 @@ func (g *Gist) GetDescription() string {
 	return *g.Description
 }
 
+// GetFiles returns the Files map if it's non-nil, an empty map otherwise.
+func (g *Gist) GetFiles() map[GistFilename]GistFile {
+	if g == nil || g.Files == nil {
+		return map[GistFilename]GistFile{}
+	}
+	return g.Files
+}
+
 // GetGitPullURL returns the GitPullURL field if it's non-nil, zero value otherwise.
 func (g *Gist) GetGitPullURL() string {
 	if g == nil || g.GitPullURL == nil {
@@ -5140,6 +5148,14 @@ func (i *InstallationPermissions) GetEmails() string {
 	return *i.Emails
 }
 
+// GetEnvironments returns the Environments field if it's non-nil, zero value otherwise.
+func (i *InstallationPermissions) GetEnvironments() string {
+	if i == nil || i.Environments == nil {
+		return ""
+	}
+	return *i.Environments
+}
+
 // GetFollowers returns the Followers field if it's non-nil, zero value otherwise.
 func (i *InstallationPermissions) GetFollowers() string {
 	if i == nil || i.Followers == nil {
@@ -5212,6 +5228,22 @@ func (i *InstallationPermissions) GetOrganizationProjects() string {
 	return *i.OrganizationProjects
 }
 
+// GetOrganizationSecrets returns the OrganizationSecrets field if it's non-nil, zero value otherwise.
+func (i *InstallationPermissions) GetOrganizationSecrets() string {
+	if i == nil || i.OrganizationSecrets == nil {
+		return ""
+	}
+	return *i.OrganizationSecrets
+}
+
+// GetOrganizationSelfHostedRunners returns the OrganizationSelfHostedRunners field if it's non-nil, zero value otherwise.
+func (i *InstallationPermissions) GetOrganizationSelfHostedRunners() string {
+	if i == nil || i.OrganizationSelfHostedRunners == nil {
+		return ""
+	}
+	return *i.OrganizationSelfHostedRunners
+}
+
 // GetOrganizationUserBlocking returns the OrganizationUserBlocking field if it's non-nil, zero value otherwise.
 func (i *InstallationPermissions) GetOrganizationUserBlocking() string {
 	if i == nil || i.OrganizationUserBlocking == nil {
@@ -5268,6 +5300,30 @@ func (i *InstallationPermissions) GetRepositoryProjects() string {
 	return *i.RepositoryProjects
 }
 
+// GetSecrets returns the Secrets field if it's non-nil, zero value otherwise.
+func (i *InstallationPermissions) GetSecrets() string {
+	if i == nil || i.Secrets == nil {
+		return ""
+	}
+	return *i.Secrets
+}
+
+// GetSecretScanningAlerts returns the SecretScanningAlerts field if it's non-nil, zero value otherwise.
+func (i *InstallationPermissions) GetSecretScanningAlerts() string {
+	if i == nil || i.SecretScanningAlerts == nil {
+		return ""
+	}
+	return *i.SecretScanningAlerts
+}
+
+// GetSecurityEvents returns the SecurityEvents field if it's non-nil, zero value otherwise.
+func (i *InstallationPermissions) GetSecurityEvents() string {
+	if i == nil || i.SecurityEvents == nil {
+		return ""
+	}
+	return *i.SecurityEvents
+}
+
 // GetSingleFile returns the SingleFile field if it's non-nil, zero value otherwise.
 func (i *InstallationPermissions) GetSingleFile() string {
 	if i == nil || i.SingleFile == nil {
@@ -5298,6 +5354,14 @@ func (i *InstallationPermissions) GetVulnerabilityAlerts() string {
 		return ""
 	}
 	return *i.VulnerabilityAlerts
+}
+
+// GetWorkflows returns the Workflows field if it's non-nil, zero value otherwise.
+func (i *InstallationPermissions) GetWorkflows() string {
+	if i == nil || i.Workflows == nil {
+		return ""
+	}
+	return *i.Workflows
 }
 
 // GetAction returns the Action field if it's non-nil, zero value otherwise.
@@ -5402,6 +5466,22 @@ func (i *Invitation) GetEmail() string {
 		return ""
 	}
 	return *i.Email
+}
+
+// GetFailedAt returns the FailedAt field if it's non-nil, zero value otherwise.
+func (i *Invitation) GetFailedAt() Timestamp {
+	if i == nil || i.FailedAt == nil {
+		return Timestamp{}
+	}
+	return *i.FailedAt
+}
+
+// GetFailedReason returns the FailedReason field if it's non-nil, zero value otherwise.
+func (i *Invitation) GetFailedReason() string {
+	if i == nil || i.FailedReason == nil {
+		return ""
+	}
+	return *i.FailedReason
 }
 
 // GetID returns the ID field if it's non-nil, zero value otherwise.
@@ -9892,6 +9972,14 @@ func (p *PullRequest) GetAuthorAssociation() string {
 	return *p.AuthorAssociation
 }
 
+// GetAutoMerge returns the AutoMerge field.
+func (p *PullRequest) GetAutoMerge() *PullRequestAutoMerge {
+	if p == nil {
+		return nil
+	}
+	return p.AutoMerge
+}
+
 // GetBase returns the Base field.
 func (p *PullRequest) GetBase() *PullRequestBranch {
 	if p == nil {
@@ -10202,6 +10290,38 @@ func (p *PullRequest) GetUser() *User {
 		return nil
 	}
 	return p.User
+}
+
+// GetCommitMessage returns the CommitMessage field if it's non-nil, zero value otherwise.
+func (p *PullRequestAutoMerge) GetCommitMessage() string {
+	if p == nil || p.CommitMessage == nil {
+		return ""
+	}
+	return *p.CommitMessage
+}
+
+// GetCommitTitle returns the CommitTitle field if it's non-nil, zero value otherwise.
+func (p *PullRequestAutoMerge) GetCommitTitle() string {
+	if p == nil || p.CommitTitle == nil {
+		return ""
+	}
+	return *p.CommitTitle
+}
+
+// GetEnabledBy returns the EnabledBy field.
+func (p *PullRequestAutoMerge) GetEnabledBy() *User {
+	if p == nil {
+		return nil
+	}
+	return p.EnabledBy
+}
+
+// GetMergeMethod returns the MergeMethod field if it's non-nil, zero value otherwise.
+func (p *PullRequestAutoMerge) GetMergeMethod() string {
+	if p == nil || p.MergeMethod == nil {
+		return ""
+	}
+	return *p.MergeMethod
 }
 
 // GetLabel returns the Label field if it's non-nil, zero value otherwise.
@@ -12412,12 +12532,12 @@ func (r *Repository) GetParent() *Repository {
 	return r.Parent
 }
 
-// GetPermissions returns the Permissions field if it's non-nil, zero value otherwise.
+// GetPermissions returns the Permissions map if it's non-nil, an empty map otherwise.
 func (r *Repository) GetPermissions() map[string]bool {
 	if r == nil || r.Permissions == nil {
 		return map[string]bool{}
 	}
-	return *r.Permissions
+	return r.Permissions
 }
 
 // GetPrivate returns the Private field if it's non-nil, zero value otherwise.
@@ -13884,6 +14004,30 @@ func (s *StarEvent) GetAction() string {
 	return *s.Action
 }
 
+// GetOrg returns the Org field.
+func (s *StarEvent) GetOrg() *Organization {
+	if s == nil {
+		return nil
+	}
+	return s.Org
+}
+
+// GetRepo returns the Repo field.
+func (s *StarEvent) GetRepo() *Repository {
+	if s == nil {
+		return nil
+	}
+	return s.Repo
+}
+
+// GetSender returns the Sender field.
+func (s *StarEvent) GetSender() *User {
+	if s == nil {
+		return nil
+	}
+	return s.Sender
+}
+
 // GetStarredAt returns the StarredAt field if it's non-nil, zero value otherwise.
 func (s *StarEvent) GetStarredAt() Timestamp {
 	if s == nil || s.StarredAt == nil {
@@ -14276,12 +14420,12 @@ func (t *Team) GetPermission() string {
 	return *t.Permission
 }
 
-// GetPermissions returns the Permissions field if it's non-nil, zero value otherwise.
+// GetPermissions returns the Permissions map if it's non-nil, an empty map otherwise.
 func (t *Team) GetPermissions() map[string]bool {
 	if t == nil || t.Permissions == nil {
 		return map[string]bool{}
 	}
-	return *t.Permissions
+	return t.Permissions
 }
 
 // GetPrivacy returns the Privacy field if it's non-nil, zero value otherwise.
@@ -14658,6 +14802,14 @@ func (t *TemplateRepoRequest) GetDescription() string {
 		return ""
 	}
 	return *t.Description
+}
+
+// GetIncludeAllBranches returns the IncludeAllBranches field if it's non-nil, zero value otherwise.
+func (t *TemplateRepoRequest) GetIncludeAllBranches() bool {
+	if t == nil || t.IncludeAllBranches == nil {
+		return false
+	}
+	return *t.IncludeAllBranches
 }
 
 // GetName returns the Name field if it's non-nil, zero value otherwise.
@@ -15364,12 +15516,12 @@ func (u *User) GetOwnedPrivateRepos() int {
 	return *u.OwnedPrivateRepos
 }
 
-// GetPermissions returns the Permissions field if it's non-nil, zero value otherwise.
+// GetPermissions returns the Permissions map if it's non-nil, an empty map otherwise.
 func (u *User) GetPermissions() map[string]bool {
 	if u == nil || u.Permissions == nil {
 		return map[string]bool{}
 	}
-	return *u.Permissions
+	return u.Permissions
 }
 
 // GetPlan returns the Plan field.
