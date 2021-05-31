@@ -22,6 +22,8 @@ const DefaultHTTPClientTimeout = time.Minute
 
 const loggerName = "github_client"
 
+var PullRequestIsClosedError = errors.New("pull-request is closed")
+
 // New returns a new github api client.
 func New(oauthAPItoken string) *Client {
 	return &Client{
@@ -94,14 +96,19 @@ func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) 
 	}
 }
 
-// PullRequestIsUptodateWithBase returns true if the pull-request contains all
-// changes from it's base branch.
+// PullRequestIsUptodateWithBase returns true if the pull-request is open and
+// contains all changes from it's base branch.
 // Additionally it returns the SHA of the head commit for which the status was
 // checked.
+// If the PR is closed PullRequestIsClosedError is returned.
 func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullRequestNumber int) (isUptodate bool, headSHA string, err error) {
 	pr, _, err := clt.clt.PullRequests.Get(ctx, owner, repo, pullRequestNumber)
 	if err != nil {
 		return false, "", clt.wrapRetryableErrors(err)
+	}
+
+	if pr.GetState() == "closed" {
+		return false, "", PullRequestIsClosedError
 	}
 
 	base := pr.GetBase()
