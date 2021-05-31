@@ -66,11 +66,13 @@ func (p *Provider) HTTPHandler(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	logger.Debug(
-		"received http request",
-		logfields.Event("github_event_received"),
-		zap.ByteString("http_body", payload),
-	)
+	/*
+		logger.Debug(
+			"received http request",
+			logfields.Event("github_event_received"),
+			zap.ByteString("http_body", payload),
+		)
+	*/
 
 	event, err := github.ParseWebHook(github.WebHookType(req), payload)
 	if err != nil {
