@@ -136,6 +136,12 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 	return PRbaseSHA == baseBranchHEADSHA, head.GetSHA(), nil
 }
 
+// CreateIssueComment creates a comment in a issue or Pull-Request
+func (clt *Client) CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error {
+	_, _, err := clt.clt.Issues.CreateComment(ctx, owner, repo, issueOrPRNr, &github.IssueComment{Body: &comment})
+	return clt.wrapRetryableErrors(err)
+}
+
 // UpdateBranch schedules merging the base-branch into a Pull-Request branch.
 // If the PR contains all changes of it's base branch, false is returned.
 // If it's not uptodate and updating the PR was scheduled at github, true is returned.
