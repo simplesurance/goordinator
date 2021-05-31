@@ -75,9 +75,10 @@ func (clt *Client) BranchHeadCommitSHA(ctx context.Context, owner, repo string, 
 }
 
 const (
-	StatusSuccess = "success"
-	StatusPending = "pending"
+	StatusError   = "error"
 	StatusFailure = "failure"
+	StatusPending = "pending"
+	StatusSuccess = "success"
 )
 
 // CombinedStatus returns the combined check status for the ref.
@@ -277,19 +278,6 @@ func (it *PRIter) Next() (*github.PullRequest, error) {
 
 	return it.Next()
 }
-
-const (
-	Open   string = "open"
-	Closed string = "closed"
-	All    string = "all"
-)
-
-type SortDir string
-
-const (
-	Asc  string = "asc"
-	Desc string = "desc"
-)
 
 // ListPullRequests returns an iterator for receiving all pull-requests.
 // The parameters state, sort, sortDirection expect the same values then their pendants in the struct github.PullRequestListOptions.
