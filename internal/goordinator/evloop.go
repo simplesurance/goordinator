@@ -9,10 +9,9 @@ import (
 
 	"github.com/simplesurance/goordinator/internal/action"
 	"github.com/simplesurance/goordinator/internal/logfields"
-	"github.com/simplesurance/goordinator/internal/provider"
+	"github.com/simplesurance/goordinator/internal/provider/github"
 )
 
-const DefEventChannelBufferSize = 512
 const DefRetryTimeout = 2 * time.Hour
 
 const loggerName = "event-loop"
@@ -21,7 +20,7 @@ const loggerName = "event-loop"
 // Actions are executed asynchronously in go-routines and are retried until
 // DefRetryTimeout expired.
 type EvLoop struct {
-	ch     chan *provider.Event
+	ch     <-chan *github.Event
 	logger *zap.Logger
 	rules  []*Rule
 
@@ -41,9 +40,9 @@ func WithActionRoutineDeferFunc(fn func()) func(*EvLoop) {
 	}
 }
 
-func NewEventLoop(rules []*Rule, opts ...func(*EvLoop)) *EvLoop {
+func NewEventLoop(eventChan <-chan *github.Event, rules []*Rule, opts ...func(*EvLoop)) *EvLoop {
 	evl := EvLoop{
-		ch:      make(chan *provider.Event, DefEventChannelBufferSize),
+		ch:      eventChan,
 		rules:   rules,
 		retryer: NewRetryer(),
 	}
@@ -59,19 +58,13 @@ func NewEventLoop(rules []*Rule, opts ...func(*EvLoop)) *EvLoop {
 	return &evl
 }
 
-// C returns the event channel.
-// Events sent to this channel will be processed.
-// The channel is closed when Stop() is called.
-func (e *EvLoop) C() chan<- *provider.Event {
-	return e.ch
-}
-
 func (e *EvLoop) Start() {
 	ctx := context.Background()
 	e.logger.Info("ready to process events", logfields.Event("eventloop_started"))
 
-	for ev := range e.ch {
-		logger := e.logger.With(ev.LogFields()...)
+	for providerEv := range e.ch {
+		ev := fromProviderEvent(providerEv)
+		logger := e.logger.With(ev.LogFields...)
 
 		logger.Debug("event received", logfields.Event("event_received"))
 
@@ -138,7 +131,7 @@ func logFieldActionResult(val string) zap.Field {
 	return zap.String("action_result", val)
 }
 
-func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, action action.Runner) {
+func (e *EvLoop) scheduleAction(ctx context.Context, event *Event, action action.Runner) {
 	e.actionWg.Add(1)
 
 	go func() {
@@ -151,17 +144,15 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *provider.Event, acti
 		_ = e.retryer.Run(
 			ctx,
 			action.Run,
-			append(event.LogFields(), action.LogFields()...),
+			append(event.LogFields, action.LogFields()...),
 		)
 	}()
 }
 
-// Stop stops the event loop, all waits until all scheduled go-routines
+// Stop stops the event loop and waits until all scheduled go-routines
 // terminated.
-// The event channel (Evloop.C()) will be closed.
 func (e *EvLoop) Stop() {
 	e.logger.Debug("event loop terminating", logfields.Event("eventloop_terminating"))
-	close(e.ch)
 
 	e.retryer.Stop()
 

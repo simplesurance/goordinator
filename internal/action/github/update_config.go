@@ -8,7 +8,6 @@ import (
 
 	"github.com/simplesurance/goordinator/internal/action"
 	"github.com/simplesurance/goordinator/internal/githubclt"
-	"github.com/simplesurance/goordinator/internal/provider"
 )
 
 // Config is the configuration of a github action
@@ -27,24 +26,24 @@ func NewUpdateBranchConfig(clt *githubclt.Client) *UpdateBranchConfig {
 	}
 }
 
-func (c *UpdateBranchConfig) Template(ev *provider.Event, _ func(string) (string, error)) (action.Runner, error) {
-	if ev.Repository == "" {
+func (c *UpdateBranchConfig) Template(ev action.Event, _ func(string) (string, error)) (action.Runner, error) {
+	if ev.GetRepository() == "" {
 		return nil, errors.New("repository for event is unknown")
 	}
 
-	if ev.RepositoryOwner == "" {
+	if ev.GetRepositoryOwner() == "" {
 		return nil, errors.New("repository owner for event is unknown")
 	}
 
-	if ev.PullRequestNr <= 0 {
-		return nil, fmt.Errorf("pull request number for event is unknown (%d <=0)", ev.PullRequestNr)
+	if ev.GetPullRequestNr() <= 0 {
+		return nil, fmt.Errorf("pull request number for event is unknown (%d <=0)", ev.GetPullRequestNr())
 	}
 
 	return &UpdateRunner{
 		UpdateBranchConfig: c,
-		repository:         ev.Repository,
-		repositoryOwner:    ev.RepositoryOwner,
-		pullRequestNumber:  ev.PullRequestNr,
+		repository:         ev.GetRepository(),
+		repositoryOwner:    ev.GetRepositoryOwner(),
+		pullRequestNumber:  ev.GetPullRequestNr(),
 	}, nil
 }
 

@@ -9,7 +9,6 @@ import (
 
 	"github.com/simplesurance/goordinator/internal/action"
 	"github.com/simplesurance/goordinator/internal/maputils"
-	"github.com/simplesurance/goordinator/internal/provider"
 )
 
 const loggerName = "action.httprequest"
@@ -92,7 +91,7 @@ func NewConfigFromMap(m map[string]interface{}) (*Config, error) {
 // Template runs the fn callback on all configuration options that can contain
 // template strings.  fn must replace the template strings.
 // It returns an executable action that uses the templated config.
-func (c *Config) Template(_ *provider.Event, fn func(string) (string, error)) (action.Runner, error) {
+func (c *Config) Template(_ action.Event, fn func(string) (string, error)) (action.Runner, error) {
 	var err error
 	newConfig := *c
 
