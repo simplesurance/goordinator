@@ -11,11 +11,11 @@ import (
 
 	"github.com/itchyny/gojq"
 
-	"github.com/simplesurance/goordinator/internal/action"
-	"github.com/simplesurance/goordinator/internal/action/github"
-	"github.com/simplesurance/goordinator/internal/action/httprequest"
 	"github.com/simplesurance/goordinator/internal/cfg"
 	"github.com/simplesurance/goordinator/internal/githubclt"
+	"github.com/simplesurance/goordinator/internal/goordinator/action"
+	"github.com/simplesurance/goordinator/internal/goordinator/action/github"
+	"github.com/simplesurance/goordinator/internal/goordinator/action/httprequest"
 	"github.com/simplesurance/goordinator/internal/stringutils"
 )
 

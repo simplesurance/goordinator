@@ -6,8 +6,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/simplesurance/goordinator/internal/action"
 	"github.com/simplesurance/goordinator/internal/githubclt"
+	"github.com/simplesurance/goordinator/internal/goordinator/action"
 )
 
 // Config is the configuration of a github action
