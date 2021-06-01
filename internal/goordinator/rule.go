@@ -16,7 +16,6 @@ import (
 	"github.com/simplesurance/goordinator/internal/action/httprequest"
 	"github.com/simplesurance/goordinator/internal/cfg"
 	"github.com/simplesurance/goordinator/internal/githubclt"
-	"github.com/simplesurance/goordinator/internal/provider"
 	"github.com/simplesurance/goordinator/internal/stringutils"
 )
 
@@ -24,7 +23,7 @@ import (
 type ActionConfig interface {
 	// Template runs templateFn for all configuration options of the action
 	// that should be templated and returns a runnable action.
-	Template(event *provider.Event, templateFn func(string) (string, error)) (action.Runner, error)
+	Template(event action.Event, templateFn func(string) (string, error)) (action.Runner, error)
 	// String returns a short representation of the ActionConfig
 	String() string
 	// String returns a formatted detailed description.
@@ -89,7 +88,7 @@ func errString(errs []error) string {
 
 // Match returns Match if the event.Provider matches the Rule.EventSource and
 // the filter-query of the rule evalutes to true for JSON representation of the event.
-func (r *Rule) Match(ctx context.Context, event *provider.Event) (MatchResult, error) {
+func (r *Rule) Match(ctx context.Context, event *Event) (MatchResult, error) {
 	var evUn interface{}
 
 	if r.eventSource != event.Provider {
@@ -138,7 +137,7 @@ func (r *Rule) Match(ctx context.Context, event *provider.Event) (MatchResult, e
 }
 
 // TemplateActions templates the filter query of the rule for the specific event.
-func (r *Rule) TemplateActions(ctx context.Context, event *provider.Event) ([]action.Runner, error) {
+func (r *Rule) TemplateActions(ctx context.Context, event *Event) ([]action.Runner, error) {
 	result := make([]action.Runner, 0, len(r.actions))
 
 	for _, actionDef := range r.actions {
@@ -150,7 +149,7 @@ func (r *Rule) TemplateActions(ctx context.Context, event *provider.Event) ([]ac
 
 			var out bytes.Buffer
 
-			templateContext := struct{ Event *provider.Event }{
+			templateContext := struct{ Event *Event }{
 				Event: event,
 			}
 

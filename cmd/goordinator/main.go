@@ -29,6 +29,8 @@ var logger *zap.Logger
 // Version is set via and ldflag on compilation
 var Version = "unknown"
 
+const EventChannelBufferSize = 512
+
 func exitOnErr(msg string, err error) {
 	if err == nil {
 		return
@@ -322,15 +324,16 @@ func main() {
 	goodbye.Register(func(_ context.Context, sig os.Signal) {
 		logger.Info(fmt.Sprintf("terminating, received signal %s", sig.String()))
 	})
-
-	evLoop := goordinator.NewEventLoop(
-		rules,
-		goordinator.WithActionRoutineDeferFunc(panicHandler),
+	evLoopchan := make(chan *github.Event, EventChannelBufferSize)
+	gh := github.New(
+		[]chan<- *github.Event{evLoopchan},
+		github.WithPayloadSecret(config.GithubWebHookSecret),
 	)
 
-	gh := github.New(
-		evLoop.C(),
-		github.WithPayloadSecret(config.GithubWebHookSecret),
+	evLoop := goordinator.NewEventLoop(
+		evLoopchan,
+		rules,
+		goordinator.WithActionRoutineDeferFunc(panicHandler),
 	)
 
 	mux := http.NewServeMux()

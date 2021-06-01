@@ -1,4 +1,4 @@
-package github
+package goordinator
 
 import (
 	"net/http"
@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/simplesurance/goordinator/internal/provider"
+	"github.com/simplesurance/goordinator/internal/provider/github"
 )
 
 func TestHTTPHandlerEventParsing(t *testing.T) {
@@ -50,16 +50,15 @@ func TestHTTPHandlerEventParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
 
-			evChan := make(chan *provider.Event, 1)
-			t.Cleanup(func() { close(evChan) })
-
-			provider := New(evChan)
+			ch := make(chan *github.Event, 1)
+			provider := github.New([]chan<- *github.Event{ch})
+			t.Cleanup(func() { close(ch) })
 
 			respRecorder := httptest.NewRecorder()
 			provider.HTTPHandler(respRecorder, tc.req)
 			require.Equal(t, 200, respRecorder.Code)
 
-			event := <-evChan
+			event := fromProviderEvent(<-ch)
 
 			assert.Equal(t, tc.expectedJSON, string(event.JSON))
 			assert.Equal(t, tc.expectedBranch, event.Branch)
