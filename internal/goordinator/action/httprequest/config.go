@@ -7,7 +7,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/simplesurance/goordinator/internal/action"
+	"github.com/simplesurance/goordinator/internal/goordinator/action"
 	"github.com/simplesurance/goordinator/internal/maputils"
 )
 
