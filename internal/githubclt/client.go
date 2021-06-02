@@ -226,6 +226,84 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	return true, nil
 }
 
+type PRIter struct {
+	clt *Client
+
+	ctx   context.Context
+	owner string
+	repo  string
+
+	unseen []*github.PullRequest
+
+	nextPage int
+	finished bool
+}
+
+// Next returns the next pullRequest.
+// When the last result was returned a nil PullRequest is returned.
+func (it *PRIter) Next() (*github.PullRequest, error) {
+	if len(it.unseen) > 0 {
+		result := it.unseen[0]
+		it.unseen = it.unseen[1:]
+
+		return result, nil
+	}
+
+	if it.finished {
+		return nil, nil
+	}
+
+	prs, resp, err := it.clt.clt.PullRequests.List(it.ctx, it.owner, it.repo, &github.PullRequestListOptions{
+		State:     "open",
+		Sort:      "created",
+		Direction: "asc",
+		ListOptions: github.ListOptions{
+			Page:    it.nextPage,
+			PerPage: 100,
+		},
+	})
+	if err != nil {
+		return nil, it.clt.wrapRetryableErrors(err)
+	}
+
+	fmt.Printf("pagination: next: %d, last: %d\n", resp.NextPage, resp.LastPage)
+	if resp.NextPage == 0 || resp.PrevPage+1 == resp.LastPage || len(prs) == 0 {
+		it.finished = true
+	} else {
+		it.nextPage = resp.NextPage
+	}
+
+	it.unseen = prs
+
+	return it.Next()
+}
+
+const (
+	Open   string = "open"
+	Closed string = "closed"
+	All    string = "all"
+)
+
+type SortDir string
+
+const (
+	Asc  string = "asc"
+	Desc string = "desc"
+)
+
+// ListPullRequests returns an iterator for receiving all pull-requests.
+// The parameters state, sort, sortDirection expect the same values then their pendants in the struct github.PullRequestListOptions.
+// all pull-requests should be returned.
+func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) *PRIter {
+	return &PRIter{
+		clt:      clt,
+		ctx:      ctx,
+		owner:    owner,
+		repo:     repo,
+		nextPage: 1,
+	}
+}
+
 func (clt *Client) wrapRetryableErrors(err error) error {
 	switch v := err.(type) {
 	case *github.RateLimitError:
