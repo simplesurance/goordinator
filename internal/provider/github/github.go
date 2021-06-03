@@ -108,9 +108,6 @@ func (p *Provider) HTTPHandler(resp http.ResponseWriter, req *http.Request) {
 				zap.String("error", "could not forward event to channel, send would have blocked"),
 				logfields.Event("github_forwarding_event_failed"),
 			)
-
-			http.Error(resp, "queue full", http.StatusServiceUnavailable)
-			return
 		}
 	}
 }
