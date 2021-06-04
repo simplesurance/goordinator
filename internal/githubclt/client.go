@@ -81,19 +81,27 @@ const (
 	StatusSuccess = "success"
 )
 
-// CombinedStatus returns the combined check status for the ref.
-func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) (string, error) {
+// CombinedStatus returns the combined check status and the last time the status changed for the ref.
+func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error) {
+	var lastChange time.Time
+
 	status, _, err := clt.clt.Repositories.GetCombinedStatus(ctx, owner, repo, ref, nil)
 	if err != nil {
-		return "", clt.wrapRetryableErrors(err)
+		return "", lastChange, clt.wrapRetryableErrors(err)
+	}
+
+	for _, s := range status.Statuses {
+		if s.GetUpdatedAt().After(lastChange) {
+			lastChange = s.GetUpdatedAt()
+		}
 	}
 
 	switch s := status.GetState(); s {
 	case StatusSuccess, StatusPending, StatusFailure:
-		return s, nil
+		return s, lastChange, nil
 
 	default:
-		return "", fmt.Errorf("github status api returned unsupported status: %q", s)
+		return "", lastChange, fmt.Errorf("github status api returned unsupported status: %q", s)
 	}
 }
 
