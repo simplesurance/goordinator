@@ -23,15 +23,14 @@ type Retryer struct {
 
 func NewRetryer() *Retryer {
 	return &Retryer{
-		logger:          zap.L().Named("retryer"),
-		shutdownChan:    make(chan struct{}),
-		maxRetryTimeout: DefRetryTimeout,
+		logger:       zap.L().Named("retryer"),
+		shutdownChan: make(chan struct{}),
 	}
 }
 
-// Run executes fn until it was successful, it returned an error that is or
-// does not wrap goorderr.RetryableError or the execution was aborte via the
-// context or r.Stop().
+// Run executes fn until it was successful, it returned an error that
+// does not wrap goorderr.RetryableError or the execution was aborted via the
+// context.
 func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF []zap.Field) error {
 	var tryCnt uint
 
