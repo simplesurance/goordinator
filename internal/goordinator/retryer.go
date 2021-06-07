@@ -16,9 +16,8 @@ import (
 // Retryer executes a function repeatedly until it was successful or cancel
 // condition happened.
 type Retryer struct {
-	logger          *zap.Logger
-	maxRetryTimeout time.Duration //2 hours
-	shutdownChan    chan struct{}
+	logger       *zap.Logger
+	shutdownChan chan struct{}
 }
 
 func NewRetryer() *Retryer {
@@ -34,14 +33,8 @@ func NewRetryer() *Retryer {
 func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF []zap.Field) error {
 	var tryCnt uint
 
-	startTime := time.Now()
-	endTime := startTime.Add(r.maxRetryTimeout)
-
-	retryTimeout := time.NewTimer(r.maxRetryTimeout)
-	defer retryTimeout.Stop()
-
 	retryTimer := time.NewTimer(0)
-	defer retryTimeout.Stop()
+	defer retryTimer.Stop()
 
 	bo := backoff.NewExponentialBackOff()
 	bo.InitialInterval = 5 * time.Second
@@ -66,7 +59,6 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 				logfields.Event("action_running"),
 				zap.Uint("try_count", tryCnt),
 				zap.Duration("age", bo.GetElapsedTime()),
-				zap.Duration("retry_timeout", r.maxRetryTimeout),
 			)
 
 			err := fn(ctx)
@@ -88,18 +80,7 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 				if errors.As(err, &retryError) {
 					logger = logger.With(
 						zap.Duration("age", bo.GetElapsedTime()),
-						zap.Duration("retry_timeout", r.maxRetryTimeout),
 					)
-
-					if retryError.After.After(endTime) {
-						logger.Error(
-							"action failed, next possible retry time is after timeout expiration",
-							logfields.Event("action_failed"),
-							zap.Time("earliest_allowed_retry", retryError.After),
-						)
-
-						return err
-					}
 
 					var retryIn time.Duration
 
@@ -135,17 +116,6 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 			)
 
 			return nil
-
-		case <-retryTimeout.C:
-			logger.Warn(
-				"giving up retrying action execution, retry timeout expired",
-				logfields.Event("action_retry_timeout"),
-				logFieldActionResult("cancelled"),
-				zap.Duration("age", bo.GetElapsedTime()),
-				zap.Duration("retry_timeout", r.maxRetryTimeout),
-			)
-
-			return errors.New("retry timeout expired")
 
 		case <-r.shutdownChan:
 			logger.Info(
