@@ -141,6 +141,9 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *Event, action action
 
 		defer e.actionWg.Done()
 
+		ctx, cancelFunc := context.WithTimeout(ctx, DefRetryTimeout)
+		defer cancelFunc()
+
 		_ = e.retryer.Run(
 			ctx,
 			action.Run,
