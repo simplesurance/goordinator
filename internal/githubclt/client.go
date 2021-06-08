@@ -235,6 +235,10 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	return true, nil
 }
 
+type PRIterator interface {
+	Next() (*github.PullRequest, error)
+}
+
 type PRIter struct {
 	clt *Client
 
@@ -290,7 +294,7 @@ func (it *PRIter) Next() (*github.PullRequest, error) {
 // ListPullRequests returns an iterator for receiving all pull-requests.
 // The parameters state, sort, sortDirection expect the same values then their pendants in the struct github.PullRequestListOptions.
 // all pull-requests should be returned.
-func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) *PRIter {
+func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) PRIterator { // interface is returned to make the method mockable
 	return &PRIter{
 		clt:      clt,
 		ctx:      ctx,
