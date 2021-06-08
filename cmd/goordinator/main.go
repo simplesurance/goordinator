@@ -158,9 +158,10 @@ func startHTTPServer(listenAddr string, mux *http.ServeMux) {
 }
 
 type arguments struct {
-	Verbose     *bool
-	ConfigFile  *string
-	ShowVersion *bool
+	Verbose           *bool
+	ConfigFile        *string
+	ShowVersion       *bool
+	AutoupdaterDryRun *bool
 }
 
 var args arguments
@@ -185,6 +186,11 @@ func mustParseCommandlineParams() {
 			"version",
 			false,
 			"print the version and exit",
+		),
+		AutoupdaterDryRun: pflag.Bool(
+			"autoupdater-dry-run",
+			false,
+			"simulate operations that would result in changes",
 		),
 	}
 
@@ -281,20 +287,21 @@ func hide(in string) string {
 	return "**hidden**"
 }
 
-func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Client, mux *http.ServeMux) chan<- *github.Event {
+func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Client, mux *http.ServeMux) (*autoupdate.Autoupdater, chan<- *github.Event) {
 	if !config.PullRequestUpdater.TriggerOnAutoMerge && len(config.PullRequestUpdater.Labels) == 0 {
 		logger.Info(
 			"github pull-request updater is disabled, trigger_on_auto_merge is false and trigger_labels in config is empty",
 			logfields.Event("autoupdater_disabled"),
 		)
 
-		return nil
+		return nil, nil
 	}
+
 	if len(config.PullRequestUpdater.Repositories) == 0 {
 		logger.Info("github pull-request updater is disabled, repository list in config is empty")
-		return nil
-
+		return nil, nil
 	}
+
 	repos := make([]autoupdate.Repository, 0, len(config.PullRequestUpdater.Repositories))
 	for _, r := range config.PullRequestUpdater.Repositories {
 		repos = append(repos, autoupdate.Repository{
@@ -312,6 +319,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 		repos,
 		config.PullRequestUpdater.TriggerOnAutoMerge,
 		config.PullRequestUpdater.Labels,
+		autoupdate.DryRun(*args.AutoupdaterDryRun),
 	)
 	autoupdater.Start()
 
@@ -325,7 +333,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 		)
 	}
 
-	return ch
+	return autoupdater, ch
 }
 
 func main() {
@@ -376,7 +384,8 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	if ch := startPullRequestAutoupdater(config, githubClient, mux); ch != nil {
+	autoupdater, ch := startPullRequestAutoupdater(config, githubClient, mux)
+	if ch != nil {
 		chans = append(chans, ch)
 	}
 
@@ -389,16 +398,17 @@ func main() {
 			rules,
 			goordinator.WithActionRoutineDeferFunc(panicHandler),
 		)
-		go evLoop.Start()
+
+		go evLoop.Start() // todo: implement ordered shutdown, wait for termination
 	} else {
 		logger.Debug("No rules defined, event-loop is not started",
 			logfields.Event("event_loop_not_started"),
 		)
-	}
 
-	if len(chans) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules or enables the branch autoupdater \n", *args.ConfigFile)
-		os.Exit(1)
+		if autoupdater == nil {
+			fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules and pull-request-updater triggers are disabled, nothing to do\n", *args.ConfigFile)
+			os.Exit(1)
+		}
 	}
 
 	gh := github.New(
@@ -437,6 +447,10 @@ func main() {
 		)
 	})
 
-	select {} // TODO: refactor this, allow clean shutdown
+	if autoupdater != nil {
+		autoupdater.Sync(context.Background())
+		autoupdater.Start()
+	}
 
+	select {} // TODO: refactor this, allow clean shutdown
 }

@@ -2,6 +2,7 @@ package autoupdate
 
 import (
 	"errors"
+	"fmt"
 
 	"go.uber.org/zap"
 
@@ -13,6 +14,10 @@ type BranchID struct {
 	RepositoryOwner string
 	Repository      string
 	Branch          string
+}
+
+func (b *BranchID) String() string {
+	return fmt.Sprintf("%s/%s branch: %s", b.RepositoryOwner, b.Repository, b.Branch)
 }
 
 // BaseBranch contains all information to identify a github base branch uniquely.
@@ -46,4 +51,8 @@ func NewBaseBranch(owner, repo, branch string) (*BaseBranch, error) {
 			logfields.BaseBranch(branch),
 		},
 	}, nil
+}
+
+func (b *BaseBranch) String() string {
+	return b.BranchID.String()
 }

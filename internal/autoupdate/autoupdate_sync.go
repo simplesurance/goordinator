@@ -15,13 +15,13 @@ import (
 // Sync synchronized the states of the autoupdate queues with the current
 // pull-request states.
 // Pull-Request information are queried from github.
-// If isFirstSync is true, all open Pull-Requests are processed. If it's false,
-// all pull-requests are fetched.
+// If it is the first sync , all open Pull-Requests are processed. If it's
+// false, all pull-requests are fetched.
 // If a PR meets a condition to be enqueued for auto-updates it is enqueued.
 // If it meets a condition for not bein autoupdated, it is dequeued.
-func (a *Autoupdater) Sync(ctx context.Context, isFirstSync bool) error {
+func (a *Autoupdater) Sync(ctx context.Context) error {
 	for repo := range a.repositories {
-		err := a.sync(ctx, repo.Owner, repo.RepositoryName, isFirstSync)
+		err := a.sync(ctx, repo.Owner, repo.RepositoryName)
 		if err != nil {
 			return fmt.Errorf("syncing %s failed: %w", repo, err)
 		}
@@ -38,7 +38,7 @@ const (
 	dequeue
 )
 
-func (a *Autoupdater) sync(ctx context.Context, owner, repo string, isFirstSync bool) error {
+func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 	/* TODO: when using this method to clean-up the queues during runtime, there is the chance of a race.
 	   We might receive and process a later PR Closed event, remove it from
 	   the queue and then retrieve from the API an earlier PR state and add
@@ -62,11 +62,14 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string, isFirstSync 
 	)
 
 	var stateFilter string
-	if isFirstSync {
+	a.lock.Lock()
+	if !a.firstSyncDone {
 		stateFilter = "open"
+		a.firstSyncDone = true // TODO: only set if sync was successful?
 	} else {
 		stateFilter = "all"
 	}
+	a.lock.Unlock()
 
 	// TODO: could we query less Pull-Requests by ignoring PRs that are
 	// closed and were last changed before goordinator started?
@@ -200,11 +203,9 @@ func (a *Autoupdater) evaluateAction(pr *github.PullRequest) action {
 		return dequeue
 	}
 
-	/* // TODO: IMPLEMENT IT!
-	if pr.Automerge == "enabled" {
+	if a.triggerOnAutomerge && pr.GetAutoMerge() != nil {
 		return enqueue
 	}
-	*/
 
 	if len(a.triggerLabels) != 0 {
 		for _, label := range pr.Labels {

@@ -15,12 +15,12 @@ import (
 	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
-// staleStatusUpdateTimeout defined the max. duration a pull-request in the
-// queue is allowed to have an unsucessfull status (pending, error, failure)
-// while being uptodate.
+// defStaleStatusUpdateTimeout defined the max. duration a pull-request in the
+// queue is allowed to have an successful, pending  or none status check while
+// being uptodate.
 // When the timeout expired, the PR is suspended to prevent that it blocks the
 // queue because e.g. the CI system does not report any status for the PR.
-const staleStatusUpdateTimeout = 3 * time.Hour
+const defStaleStatusUpdateTimeout = 3 * time.Hour
 
 // retryTimeout how long a github operation related to autoupdating retried at most
 const retryTimeout = 20 * time.Minute
@@ -40,23 +40,25 @@ type queue struct {
 	actionPool *routines.Pool
 	executing  atomic.Value // stored type: *runningTask
 
-	lastRun atomic.Value // stored type: time.Time
+	lastRun                  atomic.Value // stored type: time.Time
+	staleStatusUpdateTimeout time.Duration
 }
 
 func newQueue(base *BaseBranch, logger *zap.Logger, ghClient GithubClient, retryer Retryer) *queue {
-	q := &queue{
-		baseBranch: *base,
-		active:     newOrderedMap(),
-		suspended:  map[int]*PullRequest{},
-		logger:     logger.Named("queue").With(base.Logfields...),
-		ghClient:   ghClient,
-		retryer:    retryer,
-		actionPool: routines.NewPool(1), // one routine only, actions should run consecutively per basebranch
+	q := queue{
+		baseBranch:               *base,
+		active:                   newOrderedMap(),
+		suspended:                map[int]*PullRequest{},
+		logger:                   logger.Named("queue").With(base.Logfields...),
+		ghClient:                 ghClient,
+		retryer:                  retryer,
+		actionPool:               routines.NewPool(1), // one routine only, actions should run consecutively per basebranch
+		staleStatusUpdateTimeout: defStaleStatusUpdateTimeout,
 	}
 
 	q.setLastRun(time.Time{})
 
-	return q
+	return &q
 }
 
 // runningTask represents the task for that an update operation is currently
@@ -83,7 +85,7 @@ func (q *queue) setLastRun(t time.Time) {
 	q.lastRun.Store(t)
 }
 
-func (q *queue) gettLastRun() time.Time {
+func (q *queue) getLastRun() time.Time {
 	return q.lastRun.Load().(time.Time)
 }
 
@@ -91,7 +93,7 @@ func (q *queue) cancelActionForPR(prNumber int) {
 	if running := q.getExecuting(); running != nil {
 		if running.pr == prNumber {
 			running.cancelFunc()
-			q.logger.Info(
+			q.logger.Debug(
 				"cancelled running task for pr",
 				logfields.Event("task_cancelled"),
 				logfields.PullRequest(prNumber),
@@ -126,7 +128,7 @@ func (q *queue) _enqueueActive(pr *PullRequest) error {
 	}
 
 	logger.Debug(
-		"pull-request appended to active queue, first elemend changed, scheduling action",
+		"pull-request appended to active queue, first element changed, scheduling action",
 		logfields.Event("pull_request_enqueued"),
 	)
 
@@ -263,11 +265,11 @@ func (q *queue) Resume(prNumber int) error {
 	}
 	q.lock.Unlock()
 
-	logger := q.logger.With(pr.LogFields...)
-
 	if !exist {
 		return ErrNotFound
 	}
+
+	logger := q.logger.With(pr.LogFields...)
 
 	if err := q.Enqueue(pr); err != nil {
 		if errors.Is(err, ErrAlreadyExists) {
@@ -398,6 +400,12 @@ func (q *queue) action(ctx context.Context, pr *PullRequest) {
 			return
 		}
 
+		if errors.Is(baseBranchUpdateErr, context.Canceled) {
+			// do not post a comment when we aborten the action on
+			// purpose because e.g. goordinator is terminating
+			return
+		}
+
 		// the current ctx got cancelled in q.Suspend(), use
 		// another context to prevent that posting the comment
 		// gets cancelled, use a  shorter timeout to prevent that this
@@ -447,7 +455,8 @@ func (q *queue) action(ctx context.Context, pr *PullRequest) {
 
 		return
 	}
-	logger.Debug("retrieved combined pr status", zap.String("status", state))
+	logger = logger.With(zap.String("github.pull_request.combined_status", state))
+	logger.Debug("retrieved combined pr status")
 
 	if lastChange.IsZero() && pr.lastStatusUpdate.IsZero() {
 		// first time we queried the status for the PR and no statuses were reported to github (yet)
@@ -466,16 +475,16 @@ func (q *queue) action(ctx context.Context, pr *PullRequest) {
 		pr.lastStatusUpdate = lastChange
 	}
 
-	if state == "failure" {
+	if state != "success" && state != "pending" {
 		logger.Info(
-			"pull-request branch check status is failure, suspending autoupdates for branch",
+			"pull-request branch check is negative, suspending autoupdates for branch",
 			logfields.Event("autoupdate_suspended"),
 			zap.Error(err),
 		)
 
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
-				"suspending PR because it's PR status is failure, failed",
+				"suspending PR because it's PR status is negative, failed",
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
@@ -484,20 +493,35 @@ func (q *queue) action(ctx context.Context, pr *PullRequest) {
 		return
 	}
 
-	if pr.lastStatusUpdate.IsZero() && pr.lastStatusUpdate.Before(time.Now().Add(-staleStatusUpdateTimeout)) {
+	// A PR is considered as stale and suspended if status checks
+	// results have not changed since staleStatusUpdateTimeout.
+	// It prevents that a pr blocks the queue when CI jobs are not run for it.
+	if pr.lastStatusUpdate.Before(time.Now().Add(-q.staleStatusUpdateTimeout)) {
 		logger.Info(
-			"pull-request status check is unsucessful and stale, suspending PR updates",
+			"pull-request status check is stale, suspending PR updates",
 			logfields.Event("autoupdate_pr_status_is_stale"),
 			zap.Time("last_status_update", pr.lastStatusUpdate),
+			zap.Duration("stale_timeout", q.staleStatusUpdateTimeout),
 		)
 
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
-				"suspending PR because it's PR status is failure, failed",
+				"suspending PR because it's PR status is stale, failed",
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
 		}
+
+		return
+	}
+
+	if state == "success" || state == "pending" {
+		logger.Info(
+			"pull-request is uptodate and status checks are positive",
+			logfields.Event("pr_ready_to_merge"),
+		)
+
+		return
 	}
 }
 
@@ -589,7 +613,7 @@ func (q *queue) resumeIfPRStatusIsSuccessful(ctx context.Context, pr *PullReques
 	return false, nil
 }
 
-func (q *queue) scheduleResumePRIfStatusSuccessful(ctx context.Context, pr *PullRequest) {
+func (q *queue) ScheduleResumePRIfStatusSuccessful(ctx context.Context, pr *PullRequest) {
 	q.actionPool.Queue(func() {
 		ctx, cancelFunc := context.WithCancel(ctx)
 		defer cancelFunc()
@@ -604,4 +628,24 @@ func (q *queue) scheduleResumePRIfStatusSuccessful(ctx context.Context, pr *Pull
 
 	q.logger.With(pr.LogFields...).
 		Debug("checking PR status scheduled", logfields.Event("status_check_scheduled"))
+}
+
+func (q *queue) Stop() {
+	q.logger.Debug("terminating")
+	// TODO: THIS MIGHT PANIC!
+	// WE HAVE TO ENSURE THAT NO MORE WORK IS SCHEDULED:
+	// EMPTY THE ACTICE AND SUSPEND LIST
+	// ABORT RUNNING JOBS
+
+	q.lock.Lock()
+	// empty the active qeueue to prevent that more work is scheduled
+	q.active = newOrderedMap()
+	q.lock.Unlock()
+	if running := q.getExecuting(); running != nil {
+		running.cancelFunc()
+	}
+
+	q.logger.Debug("waiting for routines to terminate")
+	q.actionPool.Wait()
+	q.logger.Debug("terminated")
 }

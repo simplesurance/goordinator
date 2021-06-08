@@ -17,7 +17,7 @@ type Config struct {
 	GithubAPIToken            string             `toml:"github_api_token"`
 	LogFormat                 string             `toml:"log_format"`
 	LogTimeKey                string             `toml:"log_time_key"`
-	PullRequestUpdater        PullRequestUpdater `toml:"autoupdate"`
+	PullRequestUpdater        PullRequestUpdater `toml:"autoupdater"`
 	Rules                     []*Rules           `toml:"rule"`
 }
 

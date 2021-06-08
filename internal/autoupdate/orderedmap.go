@@ -14,8 +14,13 @@ func newOrderedMap() *orderedMap {
 	}
 }
 
-// EnqueueIfNotExist appends an element to the map if it does not exist already.
-func (m *orderedMap) EnqueueIfNotExist(key int, val *PullRequest) (newFirstElem *PullRequest, existed bool) {
+// EnqueueIfNotExist appends an element to the map if it is not in the map already.
+// val must not be nil, otherwise the method panics
+func (m *orderedMap) EnqueueIfNotExist(key int, val *PullRequest) (newFirstElem *PullRequest, added bool) {
+	if val == nil {
+		panic("pullrequest is nil")
+	}
+
 	if _, exist := m.m[key]; exist {
 		return nil, false
 	}
@@ -27,9 +32,11 @@ func (m *orderedMap) EnqueueIfNotExist(key int, val *PullRequest) (newFirstElem 
 		return val, true
 	}
 
-	return nil, false
+	return nil, true
 }
 
+// Get returns the value for the given key.
+// If  they key does not exist, nil is returned.
 func (m *orderedMap) Get(key int) *PullRequest {
 	v, exist := m.m[key]
 	if !exist {

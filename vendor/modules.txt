@@ -3,9 +3,12 @@
 github.com/cenkalti/backoff
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
+# github.com/golang/mock v1.5.0
+## explicit
+github.com/golang/mock/gomock
 # github.com/golang/protobuf v1.4.2
 github.com/golang/protobuf/proto
-# github.com/google/go-github/v35 v35.2.0
+# github.com/google/go-github/v35 v35.0.0 => github.com/simplesurance/go-github/v35 v35.3.1-0.20210616142130-cb65de31f15d
 ## explicit
 github.com/google/go-github/v35/github
 # github.com/google/go-querystring v1.0.0
@@ -36,6 +39,7 @@ github.com/sykesm/zap-logfmt
 ## explicit
 github.com/thecodeteam/goodbye
 # go.uber.org/atomic v1.6.0
+## explicit
 go.uber.org/atomic
 # go.uber.org/multierr v1.5.0
 go.uber.org/multierr
@@ -105,3 +109,4 @@ google.golang.org/protobuf/runtime/protoimpl
 ## explicit
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 gopkg.in/yaml.v3
+# github.com/google/go-github/v35 => github.com/simplesurance/go-github/v35 v35.3.1-0.20210616142130-cb65de31f15d

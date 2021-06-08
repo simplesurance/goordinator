@@ -23,7 +23,6 @@ type WorkFn func()
 // NewPool creates and start a new go-routine pool.
 // The pool starts <routines> number of workers.
 func NewPool(routines uint) *Pool {
-
 	p := Pool{
 		workChan:            make(chan WorkFn, routines),
 		schedulerNotifyChan: make(chan struct{}, 1),
