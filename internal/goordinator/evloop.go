@@ -147,7 +147,7 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *Event, action action
 		_ = e.retryer.Run(
 			ctx,
 			action.Run,
-			append(event.LogFields, action.LogFields()...),
+			append(action.LogFields(), event.LogFields...),
 		)
 	}()
 }
