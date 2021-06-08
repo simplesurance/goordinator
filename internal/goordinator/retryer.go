@@ -95,7 +95,7 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 			return nil
 
 		case <-r.shutdownChan:
-			return nil
+			return errors.New("event loop terminated, action not executed successful")
 		}
 	}
 }
