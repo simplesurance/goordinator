@@ -39,25 +39,21 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 	bo := backoff.NewExponentialBackOff()
 	bo.InitialInterval = 5 * time.Second
 
+	logger := r.logger.With(logF...)
+
 	for {
 		tryCnt++
-		logger := r.logger.With(zap.Uint("try_count", tryCnt))
 
 		select {
 		case <-ctx.Done():
-			logger.Info(
-				"action execution cancelled",
-				logfields.Event("action_execution_cancelled"),
-				logFieldActionResult("cancelled"),
-			)
-
 			return ctx.Err()
 
 		case <-retryTimer.C:
+			logger = logger.With(zap.Uint("try_count", tryCnt))
+
 			logger.Debug(
 				"running action",
 				logfields.Event("action_running"),
-				zap.Uint("try_count", tryCnt),
 				zap.Duration("age", bo.GetElapsedTime()),
 			)
 
@@ -65,24 +61,17 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 			if err != nil {
 				var retryError *goorderr.RetryableError
 
-				logger = logger.With(zap.Error(err))
-
 				if errors.Is(err, context.Canceled) {
-					logger.Error(
-						"action cancelled",
-						logfields.Event("action_cancelled"),
-						logFieldActionResult("cancelled"),
-					)
-
 					return err
 				}
 
 				if errors.As(err, &retryError) {
+					var retryIn time.Duration
+
 					logger = logger.With(
 						zap.Duration("age", bo.GetElapsedTime()),
+						zap.Error(err),
 					)
-
-					var retryIn time.Duration
 
 					if retryError.After.IsZero() {
 						retryIn = bo.NextBackOff()
@@ -91,7 +80,7 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 					}
 
 					retryTimer.Reset(retryIn)
-					logger.Error(
+					logger.Info(
 						"action failed, retry scheduled",
 						logfields.Event("action_retry_scheduled"),
 						zap.Duration("retry_in", retryIn),
@@ -100,30 +89,12 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 					continue
 				}
 
-				logger.Error(
-					"action failed, not retryable",
-					logfields.Event("action_failed"),
-					logFieldActionResult("failure"),
-				)
-
 				return err
 			}
-
-			logger.Info(
-				"action executed successfully",
-				logfields.Event("action_executed_successfully"),
-				logFieldActionResult("success"),
-			)
 
 			return nil
 
 		case <-r.shutdownChan:
-			logger.Info(
-				"evloop terminating, action not executed",
-				logfields.Event("action_execution_cancelled_evloop_terminated"),
-				logFieldActionResult("cancelled"),
-			)
-
 			return nil
 		}
 	}

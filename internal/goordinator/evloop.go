@@ -135,21 +135,40 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *Event, action action
 	e.actionWg.Add(1)
 
 	go func() {
+		defer e.actionWg.Done()
+
 		if e.actionDeferFn != nil {
 			defer e.actionDeferFn()
 		}
 
-		defer e.actionWg.Done()
-
 		ctx, cancelFunc := context.WithTimeout(ctx, DefRetryTimeout)
 		defer cancelFunc()
 
-		_ = e.retryer.Run(
+		lfields := append(action.LogFields(), event.LogFields...)
+		logger := e.logger.With(lfields...)
+
+		err := e.retryer.Run(
 			ctx,
 			action.Run,
-			append(action.LogFields(), event.LogFields...),
+			lfields,
+		)
+		if err != nil {
+			logger.Error(
+				"action failed",
+				logfields.Event("action_failed"),
+				zap.Error(err),
+			)
+
+			return
+		}
+
+		logger.Info(
+			"action executed successfully",
+			logfields.Event("action_executed_successfully"),
+			logFieldActionResult("success"),
 		)
 	}()
+
 }
 
 // Stop stops the event loop and waits until all scheduled go-routines
