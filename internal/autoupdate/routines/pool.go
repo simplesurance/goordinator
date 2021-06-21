@@ -45,29 +45,26 @@ func (p *Pool) scheduler() {
 	for {
 		<-p.schedulerNotifyChan
 
-		work := p.popWork()
+		p.wqMutex.Lock()
+		work := p._popWork()
 		if work == nil {
-			p.wqMutex.Lock()
-			terminate := p.terminate
-			p.wqMutex.Unlock()
-
-			if terminate {
+			if p.terminate {
 				close(p.workChan)
-
+				p.wqMutex.Unlock()
 				return
 			}
 
+			p.wqMutex.Unlock()
 			continue
 		}
+
+		p.wqMutex.Unlock()
 
 		p.workChan <- work
 	}
 }
 
-func (p *Pool) popWork() WorkFn {
-	p.wqMutex.Lock()
-	defer p.wqMutex.Unlock()
-
+func (p *Pool) _popWork() WorkFn {
 	if len(p.wq) == 0 {
 		return nil
 	}
