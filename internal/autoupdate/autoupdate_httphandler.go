@@ -33,7 +33,7 @@ func (a *Autoupdater) HTTPHandlerList(resp http.ResponseWriter, req *http.Reques
 		queue.active.Foreach(func(pr *PullRequest) bool {
 			result.WriteString(fmt.Sprintf(
 				"\t#%-4d PR: %4d\tAdded: %s, \t%s\n",
-				i, pr.Number, pr.enqueueTs.Format(time.RFC822), "active",
+				i, pr.Number, pr.enqueuedSince.Format(time.RFC822), "active",
 			))
 			i++
 			return true
@@ -41,7 +41,7 @@ func (a *Autoupdater) HTTPHandlerList(resp http.ResponseWriter, req *http.Reques
 
 		for k, pr := range queue.suspended {
 			result.WriteString(fmt.Sprintf(
-				"\tPR: %-4d\tAdded: %s, \t%s\n", k, pr.enqueueTs.Format(time.RFC822), "suspended",
+				"\tPR: %-4d\tAdded: %s, \t%s\n", k, pr.enqueuedSince.Format(time.RFC822), "suspended",
 			))
 		}
 	}

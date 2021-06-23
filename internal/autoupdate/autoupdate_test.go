@@ -22,6 +22,9 @@ import (
 const repo = "repo"
 const repoOwner = "testman"
 
+const condCheckInterval = 20 * time.Millisecond
+const condWaitTimeout = 5 * time.Second
+
 // mustGetActivePR fetches from the base-branch queue of the autoupdater the
 // pull-request with the given pull-request number.
 // If the BaseBranch queue or the pull-request does not exist, the testcase fails.
@@ -62,8 +65,6 @@ func mustQueueNotExist(t *testing.T, autoupdater *Autoupdater, baseBranch *BaseB
 	}
 
 	t.Logf("queue for base branch (%s) does not exist", baseBranch)
-
-	return
 }
 
 // mockSuccessfulGithubUpdateBranchCall configures the mock to return a
@@ -123,8 +124,44 @@ func (q *queue) suspendedLen() int {
 	return len(q.suspended)
 }
 
+func waitForProcessedEventCnt(t *testing.T, a *Autoupdater, wantedLen int) {
+	t.Helper()
+
+	require.Eventuallyf(
+		t,
+		func() bool { return a.processedEventCnt.Load() == uint64(wantedLen) },
+		condWaitTimeout,
+		condCheckInterval,
+		"autoupdater processedEventCnt is: %d, expected: %d", a.processedEventCnt.Load(), wantedLen,
+	)
+}
+
+func waitForSuspendQueueLen(t *testing.T, q *queue, wantedLen int) {
+	t.Helper()
+
+	require.Eventuallyf(
+		t,
+		func() bool { return q.suspendedLen() == wantedLen },
+		condWaitTimeout,
+		condCheckInterval,
+		"queue %v suspended len is: %d, expected: %d", q.baseBranch, q.suspendedLen(), wantedLen,
+	)
+}
+
+func waitForActiveQueueLen(t *testing.T, q *queue, wantedLen int) {
+	t.Helper()
+
+	require.Eventuallyf(
+		t,
+		func() bool { return q.activeLen() == wantedLen },
+		condWaitTimeout,
+		condCheckInterval,
+		"queue %v active len is: %d, expected: %d", q.baseBranch, q.activeLen(), wantedLen,
+	)
+}
+
 func TestEnqueueDequeue(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 10)
 	defer close(evChan)
@@ -168,7 +205,7 @@ func TestEnqueueDequeue(t *testing.T) {
 }
 
 func TestSuspendAndResume(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 10)
 	defer close(evChan)
@@ -178,7 +215,7 @@ func TestSuspendAndResume(t *testing.T) {
 
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
-	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).MinTimes(1)
+	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -218,7 +255,7 @@ func TestSuspendAndResume(t *testing.T) {
 }
 
 func TestPushToPRBranchResumesPR(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -262,16 +299,14 @@ func TestPushToPRBranchResumesPR(t *testing.T) {
 	assert.Equal(t, queue.suspendedLen(), 1)
 
 	evChan <- &github_prov.Event{Event: newSyncEvent(pr.Number, pr.Branch, baseBranch.Branch)}
-	for autoupdater.processedEventCnt.Load() < 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
 
+	waitForProcessedEventCnt(t, autoupdater, 1)
 	assert.Equal(t, queue.activeLen(), 1)
 	assert.Equal(t, queue.suspendedLen(), 0)
 }
 
 func TestPushToBaseBranchTriggersUpdate(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -282,7 +317,7 @@ func TestPushToBaseBranchTriggersUpdate(t *testing.T) {
 	pr, err := NewPullRequest(1, "pr_branch")
 	require.NoError(t, err)
 
-	updateCall := mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true)
+	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).Times(2)
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -308,15 +343,12 @@ func TestPushToBaseBranchTriggersUpdate(t *testing.T) {
 	assert.Equal(t, queue.activeLen(), 1)
 	assert.Equal(t, queue.suspendedLen(), 0)
 
-	updateCall.Times(2) // expect 1x more invocation
 	evChan <- &github_prov.Event{Event: newPushEvent(baseBranch.Branch)}
-	for autoupdater.processedEventCnt.Load() < 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 1)
 }
 
 func TestPushToBaseBranchResumesPRs(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -346,30 +378,24 @@ func TestPushToBaseBranchResumesPRs(t *testing.T) {
 
 	baseBranch := "main"
 	evChan <- &github_prov.Event{Event: newPullRequestLabeledEvent(prNumber, prBranch, baseBranch, triggerLabel)}
-	for autoupdater.processedEventCnt.Load() < 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 1)
 
 	queue := autoupdater.getQueue(BranchID{RepositoryOwner: repoOwner, Repository: repo, Branch: baseBranch})
 	require.NotNil(t, queue)
 
-	for len(queue.suspended) != 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForSuspendQueueLen(t, queue, 1)
 	require.Equal(t, queue.activeLen(), 0)
 
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true)
 	evChan <- &github_prov.Event{Event: newPushEvent(baseBranch)}
-	for autoupdater.processedEventCnt.Load() < 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
 
+	waitForProcessedEventCnt(t, autoupdater, 2)
 	assert.Equal(t, queue.activeLen(), 1, "active queue len")
 	assert.Equal(t, queue.suspendedLen(), 0, "suspended queue len")
 }
 
 func TestPRBaseBranchChangeMovesItToAnotherQueue(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -400,9 +426,7 @@ func TestPRBaseBranchChangeMovesItToAnotherQueue(t *testing.T) {
 
 	evChan <- &github_prov.Event{Event: newPullRequestLabeledEvent(prNumber, prBranch, oldBaseBranch, triggerLabel)}
 
-	for autoupdater.processedEventCnt.Load() < 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 1)
 
 	queue := autoupdater.getQueue(BranchID{RepositoryOwner: repoOwner, Repository: repo, Branch: oldBaseBranch})
 	require.NotNil(t, queue)
@@ -410,9 +434,7 @@ func TestPRBaseBranchChangeMovesItToAnotherQueue(t *testing.T) {
 	newBaseBranch := "develop"
 	evChan <- &github_prov.Event{Event: newPullRequestBaseBranchChangeEvent(prNumber, prBranch, "main", newBaseBranch)}
 
-	for autoupdater.processedEventCnt.Load() < 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 2)
 
 	assert.Nil(
 		t,
@@ -427,7 +449,7 @@ func TestPRBaseBranchChangeMovesItToAnotherQueue(t *testing.T) {
 }
 
 func TestUnlabellingPRDequeuesPR(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -457,18 +479,14 @@ func TestUnlabellingPRDequeuesPR(t *testing.T) {
 	oldBaseBranch := "main"
 
 	evChan <- &github_prov.Event{Event: newPullRequestLabeledEvent(prNumber, prBranch, oldBaseBranch, triggerLabel)}
-	for autoupdater.processedEventCnt.Load() < 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 1)
 
 	queue := autoupdater.getQueue(BranchID{RepositoryOwner: repoOwner, Repository: repo, Branch: oldBaseBranch})
 	require.NotNil(t, queue)
 
 	evChan <- &github_prov.Event{Event: newPullRequestUnlabeledEvent(prNumber, prBranch, oldBaseBranch, triggerLabel)}
 
-	for autoupdater.processedEventCnt.Load() < 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 2)
 
 	autoupdater.lock.Lock()
 	assert.Len(t, autoupdater.queues, 0)
@@ -476,7 +494,7 @@ func TestUnlabellingPRDequeuesPR(t *testing.T) {
 }
 
 func TestClosingPRDequeuesPR(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -505,9 +523,7 @@ func TestClosingPRDequeuesPR(t *testing.T) {
 
 	baseBranch := "main"
 	evChan <- &github_prov.Event{Event: newPullRequestLabeledEvent(prNumber, prBranch, baseBranch, triggerLabel)}
-	for autoupdater.processedEventCnt.Load() < 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 1)
 
 	queue := autoupdater.getQueue(BranchID{RepositoryOwner: repoOwner, Repository: repo, Branch: baseBranch})
 	require.NotNil(t, queue)
@@ -515,16 +531,14 @@ func TestClosingPRDequeuesPR(t *testing.T) {
 	require.Len(t, queue.suspended, 0)
 
 	evChan <- &github_prov.Event{Event: newPullRequestClosedEvent(prNumber, prBranch, baseBranch)}
-	for autoupdater.processedEventCnt.Load() < 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 2)
 
 	queue = autoupdater.getQueue(BranchID{RepositoryOwner: repoOwner, Repository: repo, Branch: baseBranch})
 	require.Nil(t, queue, "baseBranch queue still exist after only PR for the base branch was closed")
 }
 
 func TestSuccessStatusEventResumesPRs(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -582,41 +596,33 @@ func TestSuccessStatusEventResumesPRs(t *testing.T) {
 	queueBaseBranch1 := autoupdater.getQueue(baseBranch1.BranchID)
 	require.NotNil(t, queueBaseBranch1)
 
-	for queueBaseBranch1.suspendedLen() != 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForSuspendQueueLen(t, queueBaseBranch1, 2)
 	assert.Equal(t, 0, queueBaseBranch1.activeLen(), "active queue")
-	assert.Equal(t, queueBaseBranch1.suspendedLen(), 2, "suspend queue")
+	assert.Equal(t, 2, queueBaseBranch1.suspendedLen(), "suspend queue")
 
 	queueBaseBranch2 := autoupdater.getQueue(baseBranch2.BranchID)
 	require.NotNil(t, queueBaseBranch2)
 
-	for len(queueBaseBranch2.suspended) != 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForSuspendQueueLen(t, queueBaseBranch2, 1)
 
 	assert.Equal(t, 0, queueBaseBranch2.activeLen(), "active queue")
 	assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")
 
 	mockCombindedStatus(ghClient, "success", time.Now(), nil).MinTimes(3)
-
 	evChan <- &github_prov.Event{Event: newStatusEvent("success", pr1.Branch, pr2.Branch, pr3.Branch)}
-	for queueBaseBranch1.suspendedLen() != 0 {
-		time.Sleep(20 * time.Millisecond)
-	}
+
+	waitForSuspendQueueLen(t, queueBaseBranch1, 0)
 	assert.Equal(t, 2, queueBaseBranch1.activeLen(), "active queue")
 	assert.Equal(t, 0, queueBaseBranch1.suspendedLen(), "suspend queue")
 
-	for queueBaseBranch2.suspendedLen() != 0 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForSuspendQueueLen(t, queueBaseBranch2, 0)
 
 	assert.Equal(t, 1, queueBaseBranch2.activeLen(), "active queue")
 	assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
 }
 
 func TestFailedStatusEventSuspendsPRs(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -674,131 +680,26 @@ func TestFailedStatusEventSuspendsPRs(t *testing.T) {
 	queueBaseBranch1 := autoupdater.getQueue(baseBranch1.BranchID)
 	require.NotNil(t, queueBaseBranch1)
 
-	for queueBaseBranch1.activeLen() != 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
-	assert.Equal(t, 2, queueBaseBranch1.activeLen(), "active queue")
+	waitForActiveQueueLen(t, queueBaseBranch1, 2)
 	assert.Equal(t, 0, queueBaseBranch1.suspendedLen(), "suspend queue")
 
 	queueBaseBranch2 := autoupdater.getQueue(baseBranch2.BranchID)
 	require.NotNil(t, queueBaseBranch2)
 
-	for queueBaseBranch2.activeLen() != 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	assert.Equal(t, 1, queueBaseBranch2.activeLen(), "active queue")
+	waitForActiveQueueLen(t, queueBaseBranch2, 1)
 	assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
 
 	evChan <- &github_prov.Event{Event: newStatusEvent("failure", pr1.Branch, pr2.Branch, pr3.Branch)}
-	for queueBaseBranch1.suspendedLen() != 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
+
+	waitForSuspendQueueLen(t, queueBaseBranch1, 2)
 	assert.Equal(t, 0, queueBaseBranch1.activeLen(), "active queue")
-	assert.Equal(t, 2, queueBaseBranch1.suspendedLen(), "suspend queue")
 
-	for queueBaseBranch2.activeLen() != 0 {
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	assert.Equal(t, 0, queueBaseBranch2.activeLen(), "active queue")
+	waitForActiveQueueLen(t, queueBaseBranch2, 0)
 	assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")
-}
-
-func TestFailedtatusEventResumesPRs(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
-
-	evChan := make(chan *github_prov.Event, 1)
-	defer close(evChan)
-
-	mockctrl := gomock.NewController(t)
-	ghClient := mocks.NewMockGithubClient(mockctrl)
-
-	pr1, err := NewPullRequest(1, "pr_branch1")
-	require.NoError(t, err)
-
-	pr2, err := NewPullRequest(2, "pr_branch2")
-	require.NoError(t, err)
-
-	pr3, err := NewPullRequest(3, "pr_branch3")
-	require.NoError(t, err)
-
-	ghClient.
-		EXPECT().
-		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-		DoAndReturn(func(_ context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
-			return false, nil
-		}).
-		MinTimes(3)
-
-	mockCombindedStatus(ghClient, "failed", time.Now(), nil).Times(3)
-
-	retryer := goordinator.NewRetryer()
-	autoupdater := NewAutoupdater(
-		ghClient,
-		evChan,
-		retryer,
-		[]Repository{{Owner: repoOwner, RepositoryName: repo}},
-		true,
-		nil,
-	)
-
-	autoupdater.Start()
-	t.Cleanup(autoupdater.Stop)
-
-	baseBranch1, err := NewBaseBranch(repoOwner, repo, "main")
-	require.NoError(t, err)
-
-	baseBranch2, err := NewBaseBranch(repoOwner, repo, "develop")
-	require.NoError(t, err)
-
-	err = autoupdater.Enqueue(context.Background(), baseBranch1, pr1)
-	require.NoError(t, err)
-
-	err = autoupdater.Enqueue(context.Background(), baseBranch1, pr2)
-	require.NoError(t, err)
-
-	err = autoupdater.Enqueue(context.Background(), baseBranch2, pr3)
-	require.NoError(t, err)
-
-	queueBaseBranch1 := autoupdater.getQueue(baseBranch1.BranchID)
-	require.NotNil(t, queueBaseBranch1)
-
-	for queueBaseBranch1.suspendedLen() != 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
-	assert.Equal(t, 0, queueBaseBranch1.activeLen(), "active queue")
-	assert.Equal(t, 2, queueBaseBranch1.suspendedLen(), "suspend queue")
-
-	queueBaseBranch2 := autoupdater.getQueue(baseBranch2.BranchID)
-	require.NotNil(t, queueBaseBranch2)
-
-	for len(queueBaseBranch2.suspended) != 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	assert.Equal(t, 0, queueBaseBranch2.activeLen(), "active queue")
-	assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")
-
-	mockCombindedStatus(ghClient, "success", time.Now(), nil).MinTimes(3)
-
-	evChan <- &github_prov.Event{Event: newStatusEvent("success", pr1.Branch, pr2.Branch, pr3.Branch)}
-	for queueBaseBranch1.suspendedLen() != 0 {
-		time.Sleep(20 * time.Millisecond)
-	}
-	assert.Equal(t, 2, queueBaseBranch1.activeLen(), "active queue")
-	assert.Equal(t, 0, queueBaseBranch1.suspendedLen(), "suspend queue")
-
-	for queueBaseBranch2.suspendedLen() != 0 {
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	assert.Equal(t, 1, queueBaseBranch2.activeLen(), "active queue")
-	assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
 }
 
 func TestPRIsSuspendedWhenStatusIsStuck(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -809,7 +710,7 @@ func TestPRIsSuspendedWhenStatusIsStuck(t *testing.T) {
 	prNumber := 1
 	triggerLabel := "queue-add"
 
-	pendingStatusCheckTs := time.Now().Add(-time.Second)
+	pendingStatusCheckTs := time.Now().Add(-2 * time.Hour)
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).MinTimes(2)
 	mockCombindedStatus(ghClient, "pending", pendingStatusCheckTs, nil).MinTimes(2)
 
@@ -839,18 +740,20 @@ func TestPRIsSuspendedWhenStatusIsStuck(t *testing.T) {
 	queue := autoupdater.getQueue(baseBranch.BranchID)
 	require.NotNil(t, queue)
 
-	for queue.getLastRun().IsZero() {
-		time.Sleep(20 * time.Millisecond)
-	}
+	require.Eventually(
+		t,
+		func() bool { return !queue.getLastRun().IsZero() },
+		condWaitTimeout,
+		condCheckInterval,
+	)
 
 	assert.Equal(t, 1, queue.activeLen(), "active queue")
 	assert.Equal(t, 0, queue.suspendedLen())
 
-	queue.staleStatusUpdateTimeout = time.Second
+	queue.staleTimeout = time.Hour
+	pr.SetStateUnchangedSince(time.Now().Add(-90 * time.Minute))
 
-	for queue.suspendedLen() != 1 {
-		time.Sleep(500 * time.Millisecond)
-	}
+	waitForSuspendQueueLen(t, queue, 1)
 
 	assert.Equal(t, 0, queue.activeLen(), "active queue")
 	assert.Equal(t, 1, queue.suspendedLen(), "suspend queue")
@@ -881,7 +784,7 @@ func TestPRIsSuspendedWhenUptodateAndHasFailedStatus(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("state:%q, err:%v", tc.StatusState, tc.StatusError), func(t *testing.T) {
-			t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+			t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 			evChan := make(chan *github_prov.Event, 1)
 			defer close(evChan)
@@ -911,20 +814,18 @@ func TestPRIsSuspendedWhenUptodateAndHasFailedStatus(t *testing.T) {
 
 			baseBranch := "main"
 			evChan <- &github_prov.Event{Event: newPullRequestLabeledEvent(prNumber, prBranch, baseBranch, triggerLabel)}
-			for autoupdater.processedEventCnt.Load() < 1 {
-				time.Sleep(20 * time.Millisecond)
-			}
+			waitForProcessedEventCnt(t, autoupdater, 1)
 
 			queue := autoupdater.getQueue(BranchID{RepositoryOwner: repoOwner, Repository: repo, Branch: baseBranch})
 			require.NotNil(t, queue)
-			require.Equal(t, queue.activeLen(), 0)
-			require.Len(t, queue.suspended, 1)
+			assert.Equal(t, queue.activeLen(), 0)
+			assert.Len(t, queue.suspended, 1)
 		})
 	}
 }
 
 func TestEnqueueDequeueByAutomergeEvents(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -952,24 +853,20 @@ func TestEnqueueDequeueByAutomergeEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	evChan <- &github_prov.Event{Event: newPullRequestAutomergeEnabledEvent(prNumber, prBranch, baseBranch.Branch)}
-	for autoupdater.processedEventCnt.Load() < 1 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 1)
 
 	queue := autoupdater.getQueue(baseBranch.BranchID)
 	assert.Equal(t, queue.activeLen(), 1)
 	assert.Equal(t, 0, queue.suspendedLen())
 
 	evChan <- &github_prov.Event{Event: newPullRequestAutomergeDisabledEvent(prNumber, prBranch, baseBranch.Branch)}
-	for autoupdater.processedEventCnt.Load() < 2 {
-		time.Sleep(20 * time.Millisecond)
-	}
+	waitForProcessedEventCnt(t, autoupdater, 2)
 
 	assert.Nil(t, autoupdater.getQueue(baseBranch.BranchID), "basebranch queue still exist after automerge was disabled")
 }
 
 func TestInitialSync(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t)))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
@@ -1034,6 +931,7 @@ func TestInitialSync(t *testing.T) {
 
 	err := autoupdater.Sync(context.Background())
 	require.NoError(t, err)
+	t.Cleanup(autoupdater.Stop)
 
 	q := autoupdater.getQueue(BranchID{Repository: repo, RepositoryOwner: repoOwner, Branch: "main"})
 	require.NotNil(t, q)

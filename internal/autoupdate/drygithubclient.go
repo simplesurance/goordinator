@@ -10,7 +10,7 @@ import (
 )
 
 // DryGithubClient is a github-client that does not do any changes on github.
-// All operations that could cause a change are simluated and always succed.
+// All operations that could cause a change are simulated and always succeed.
 // All all other operations are forwarded to wrapped github-client.
 type DryGithubClient struct {
 	clt    GithubClient

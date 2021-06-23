@@ -3,6 +3,7 @@ package autoupdate
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -15,11 +16,41 @@ type PullRequest struct {
 	Branch    string
 	LogFields []zap.Field
 
-	// lastStatusUpdate is the the last time a github status for the PR changed.
-	// It is the zero timestamp if it was never retrieved before.
-	lastStatusUpdate time.Time
+	enqueuedSince time.Time
 
-	enqueueTs time.Time
+	stateUnchangedSince time.Time
+	lock                sync.Mutex // must be hold when accessing stateUnchangedSince
+}
+
+func (p *PullRequest) GetStateUnchangedSince() time.Time {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	return p.stateUnchangedSince
+}
+
+func (p *PullRequest) SetStateUnchangedSinceIfNewer(t time.Time) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	if p.stateUnchangedSince.Before(t) {
+		p.stateUnchangedSince = t
+	}
+}
+
+func (p *PullRequest) SetStateUnchangedSince(t time.Time) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.stateUnchangedSince = t
+}
+
+func (p *PullRequest) SetStateUnchangedSinceIfZero(t time.Time) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	if p.stateUnchangedSince.IsZero() {
+		p.stateUnchangedSince = t
+	}
 }
 
 func NewPullRequest(nr int, branch string) (*PullRequest, error) {
