@@ -12,6 +12,14 @@ import (
 	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
+type action int
+
+const (
+	none action = iota
+	enqueue
+	dequeue
+)
+
 // Sync synchronized the states of the autoupdate queues with the current
 // pull-request states.
 // Pull-Request information are queried from github.
@@ -29,14 +37,6 @@ func (a *Autoupdater) Sync(ctx context.Context) error {
 
 	return nil
 }
-
-type action int
-
-const (
-	none action = iota
-	enqueue
-	dequeue
-)
 
 func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 	/* TODO: when using this method to clean-up the queues during runtime, there is the chance of a race.

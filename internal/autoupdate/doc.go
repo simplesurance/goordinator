@@ -1,3 +1,47 @@
+// Package autoupdate provides automatic serialized updating of GitHub
+// Pull-Request branches with their base-branch.
+//
+// The autoupdater can be used in combination with the GitHub Automerge feature
+// and specific branch protection rules to provide a serialized merge-queue.
+// The GitHub branch protection rules are required to be be configured to:
+//
+// - Require >=1 status checks to pass before merging,
+//
+// - Require branches to be up to date before merging
+//
+// When automerge is enabled for a Pull-Requests it is queued for being update
+// automatically with it's base branch. When all Status Checks succeed for the
+// PR, it is uptodate with it's base branch and all configured mandatory PR
+// reviewers approved, the auto-merge feature will merge the PR into it's base branch.
+// Per base-branch the autoupdater, updates automatically the first PR in the
+// queue with it's base branch. It serializes updating per basebranch, to avoid
+// a race between multiples pull-requests that result in unnecessary CI runs and merges.
+// The autoupdater merges the base-branch into the Pull-Request branch in the
+// following circumstances:
+// - The base branch changed and
+// - the Pull-Request branch changed and is not uptodate with it's base branch
+//   anymore.
+// When merging the base-branch into the PR branch is not possible or a failed
+// status check for the pull-request was reported, updates for the
+// Pull-Requests are suspended and the next PR in the queue will be kept uptodate.
+// When later the status checks became positive for the PR, it's branch changed
+// or the base-branch changed, updates for it's are resumed. It will be
+// enqueued again for updates, and kept uptodate when it is first in the queue.
+//
+// Components
+//
+// The main components are the queue and autoupdater.
+//
+// The autoupdater manages and coordinates operations on queues.
+// It listens for Github Webhook events or querues the current state from
+// GitHub and triggers operations on the queues.
+// For every base-branch for Pull-Requests that are kept uptodate it maintains 1 queue.
+//
+// A queue serializes updating of Pull-Request branches per baseBranch.
+// Enqueued Pull-Requests can be in active or suspended state.
+// Active Pull-Requests are managed in a FIFO-queue, the first Pull-Request in
+// the branch is kept uptodate with it's base branch.
+// Pull-Requests are in suspended are not kept uptodate.
 package autoupdate
 
 // TODO: where to put this package level documentary?

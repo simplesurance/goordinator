@@ -30,18 +30,21 @@ const retryTimeout = 20 * time.Minute
 // Enqueued Pull-Requests can either be in active or suspended state.
 // Suspended Pull-Requests are not updated.
 // Active Pull-Requests are stored in a FIFO-queue. The first pull-request in
-// the queue is updated. Other active Pull-Requests are enqueued for being updated.
+// the queue is kept uptodate with it's base branch.
 //
-// A update operation can be triggered manually via queue.ScheduleUpdateFirstPR().
-// It is also run automatically whenever the first element in active fifo-list changed.
+// When the first element in the active queue changes, the update operations
+// run for the Pull-Request.
+// The update operation on the first active PR can be triggered via
+// queue.ScheduleUpdateFirstPR().
 // The Update operation tries to update the pull-requests with it's base-branch.
-// If updating failed, the pull-request is suspended.
+// If updating fails, the pull-request is suspended.
 // If it is already uptodate, it's GitHub combined status check is retrieved.
 // If it is in a failed state, the pull-request is suspended.
-// If the pull-request status became stale it is also suspended.
-// A Pull-Requests status is stale when it is uptodate and no status was
-// reported or it's status is pending for longer then a the staleTimeout.
-// TODO: continue doc
+// If the first active pull-request becomes stale it is also suspended.
+// A Pull-Request is stale when it is the first element in the queue and it's
+// status has not changed since the stale timeout. Status change means that it
+// was updated with it's base branch or it's github check status changed,
+// including a check status for a new git HEAD ref.
 type queue struct {
 	baseBranch BaseBranch
 
