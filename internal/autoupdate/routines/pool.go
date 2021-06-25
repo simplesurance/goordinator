@@ -71,8 +71,8 @@ func (p *Pool) _popWork() WorkFn {
 		return nil
 	}
 
-	w := p.wq[len(p.wq)-1]
-	p.wq = p.wq[:len(p.wq)-1]
+	w := p.wq[0]
+	p.wq = p.wq[1:]
 
 	return w
 }
