@@ -372,7 +372,7 @@ func main() {
 		"loaded cfg file",
 		logfields.Event("cfg_loaded"),
 		zap.String("cfg_file", *args.ConfigFile),
-		zap.String("http_server_listen_addr", config.HTTPListenAddr),
+		zap.String("http_server_listen_addr", config.HTTPSListenAddr),
 		zap.String("https_server_listen_addr", config.HTTPListenAddr),
 		zap.String("github_webhook_endpoint", config.HTTPGithubWebhookEndpoint),
 		zap.String("github_webhook_secret", hide(config.GithubWebHookSecret)),
