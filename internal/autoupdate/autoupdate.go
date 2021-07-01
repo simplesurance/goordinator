@@ -323,7 +323,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 
 	logger.Debug("event received")
 
-	switch ev.GetAction() {
+	switch action := ev.GetAction(); action {
 	// TODO: If a pull request is opened and in the open-dialog is
 	// already the applied, will we receive a label-add event? Or do we
 	// also have to monitor Open-Events for PRs that have the label already?
@@ -369,6 +369,12 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 
 			return
 		}
+
+		logger.Info(
+			"pull request enqueued for updates",
+			logEventEnqeued,
+			logFieldReason("auto_merge_enabled"),
+		)
 
 	case "labeled":
 		labelName := ev.GetLabel().GetName()
@@ -429,6 +435,12 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			return
 		}
 
+		logger.Info(
+			"pull request enqueued for updates",
+			logEventEnqeued,
+			logFieldReason("labeled"),
+		)
+
 	case "auto_merge_disabled":
 		if !a.triggerOnAutomerge {
 			logger.Debug(
@@ -473,6 +485,19 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			)
 			return
 		}
+
+		var reason zap.Field
+		if action == "closed" {
+			reason = logReasonPRClosed
+		} else {
+			reason = logFieldReason(action)
+		}
+
+		logger.Info(
+			"pull request dequeued for updates",
+			logEventDequeued,
+			reason,
+		)
 
 	case "unlabeled":
 		labelName := ev.GetLabel().GetName()
@@ -519,6 +544,12 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 
 			return
 		}
+
+		logger.Info(
+			"pull request dequeued for updates",
+			logEventDequeued,
+			logFieldReason("unlabeled"),
+		)
 
 	case "synchronize":
 		bb, err := NewBaseBranch(owner, repo, baseBranch)
@@ -586,7 +617,13 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			return
 		}
 
-		logger.Info("base branch of PR changed, moved PR to new base-branch queue")
+		logger.Info(
+			"pr was moved to another base-branch queue",
+			logfields.Event("base_branch_queue_changed"),
+			logFieldReason("base_branch_changed"),
+			zap.String("git.old_base_branch", oldBaseBranch.Branch),
+			logfields.BaseBranch(bb.Branch),
+		)
 
 	default:
 		logger.Debug("ignoring irrelevant pull request event",
@@ -679,7 +716,6 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 	default:
 		logger.Debug("ignoring event with unknown or not relevant status",
 			logFieldEventIgnored,
-			zap.String("github.status_event.state", ev.GetState()),
 		)
 	}
 }
