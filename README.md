@@ -7,7 +7,7 @@ It provides 2 functionalities.
 
 ### Configurable Event-Trigger Loop
 
-Goordinator can listen for GitHub webhook events, runs their JSON payloads
+Goordinator listens for GitHub webhook events, runs their JSON payloads
 through a JQ filter query and triggers actions if the filter matches.
 The supported actions are:
 - posting a http-request
