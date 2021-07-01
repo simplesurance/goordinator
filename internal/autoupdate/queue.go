@@ -192,7 +192,7 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 		delete(q.suspended, prNumber)
 		q.lock.Unlock()
 
-		logger.Info(
+		logger.Debug(
 			"pull request removed from suspend queue",
 			logfields.Event("pull_request_dequeued"),
 		)
@@ -214,8 +214,8 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 
 	logger := q.logger.With(removed.LogFields...)
 
-	logger.Info(
-		"pull request removed from auto-update queue",
+	logger.Debug(
+		"pull request removed from active queue",
 		logfields.Event("pull_request_dequeued"),
 	)
 
@@ -442,6 +442,12 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 					zap.Error(err),
 				)
 			}
+
+			logger.Info(
+				"pull request dequeued for updates",
+				logEventDequeued,
+				logReasonPRClosed,
+			)
 
 			return
 		}
