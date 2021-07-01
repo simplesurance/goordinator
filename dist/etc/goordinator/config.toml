@@ -90,7 +90,7 @@ autoupdater.http_endpoint = "/autoupdater"
    '''
 
   [[rule.action]]
-    # updatebranch" updates a GitHub Pull-Request with the changes from it's
+    # pdatebranch updates a GitHub Pull-Request with the changes from its
     # base-branch. The changes from the base branch are merged into the
     # Pull-Request branch.
     # Requires github_api_token to be defined.
