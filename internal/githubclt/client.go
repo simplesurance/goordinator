@@ -22,7 +22,7 @@ const DefaultHTTPClientTimeout = time.Minute
 
 const loggerName = "github_client"
 
-var ErrPullRequestIsClosed = errors.New("pull-request is closed")
+var ErrPullRequestIsClosed = errors.New("pull request is closed")
 
 // New returns a new github api client.
 func New(oauthAPItoken string) *Client {
@@ -105,7 +105,7 @@ func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) 
 	}
 }
 
-// PullRequestIsUptodateWithBase returns true if the pull-request is open and
+// PullRequestIsUptodateWithBase returns true if the pull request is open and
 // contains all changes from it's base branch.
 // Additionally it returns the SHA of the head commit for which the status was
 // checked.
@@ -122,7 +122,7 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 
 	base := pr.GetBase()
 	if base == nil {
-		return false, "", errors.New("got pull-request object with empty base")
+		return false, "", errors.New("got pull request object with empty base")
 	}
 
 	baseBranch := base.GetRef()
@@ -135,10 +135,10 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 
 	head := pr.GetHead()
 	if head == nil {
-		return false, "", errors.New("got pull-request object with empty head")
+		return false, "", errors.New("got pull request object with empty head")
 	}
 
-	clt.logger.Debug("evaluated if pull-request is uptodate with base branch",
+	clt.logger.Debug("evaluated if pull request is uptodate with base branch",
 		logfields.Event("github_check_pr_uptodate_with_base"),
 		logfields.Repository(repo),
 		logfields.RepositoryOwner(owner),
@@ -152,13 +152,13 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 	return PRbaseSHA == baseBranchHEADSHA, head.GetSHA(), nil
 }
 
-// CreateIssueComment creates a comment in a issue or Pull-Request
+// CreateIssueComment creates a comment in a issue or pull request
 func (clt *Client) CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error {
 	_, _, err := clt.clt.Issues.CreateComment(ctx, owner, repo, issueOrPRNr, &github.IssueComment{Body: &comment})
 	return clt.wrapRetryableErrors(err)
 }
 
-// UpdateBranch schedules merging the base-branch into a Pull-Request branch.
+// UpdateBranch schedules merging the base-branch into a pull request branch.
 // If the PR contains all changes of it's base branch, false is returned.
 // If it's not uptodate and updating the PR was scheduled at github, true is returned.
 // If the PR was updated while the method was executed, a
@@ -197,7 +197,7 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	_, _, err = clt.clt.PullRequests.UpdateBranch(ctx, owner, repo, pullRequestNumber, &github.PullRequestBranchUpdateOptions{ExpectedHeadSHA: &prHEADSHA})
 	if err != nil {
 		if _, ok := err.(*github.AcceptedError); ok {
-			logger.Debug("update of pull-request branch with base branch scheduled",
+			logger.Debug("update of pull request branch with base branch scheduled",
 				logfields.Event("github_branch_update_scheduled"),
 			)
 
@@ -291,9 +291,9 @@ func (it *PRIter) Next() (*github.PullRequest, error) {
 	return it.Next()
 }
 
-// ListPullRequests returns an iterator for receiving all pull-requests.
+// ListPullRequests returns an iterator for receiving all pull requests.
 // The parameters state, sort, sortDirection expect the same values then their pendants in the struct github.PullRequestListOptions.
-// all pull-requests should be returned.
+// all pull requests should be returned.
 func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) PRIterator { // interface is returned to make the method mockable
 	return &PRIter{
 		clt:      clt,

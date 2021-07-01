@@ -308,7 +308,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 	}
 
 	if len(config.Autoupdater.Repositories) == 0 {
-		logger.Info("github pull-request updater is disabled, repository list in config is empty")
+		logger.Info("github pull request updater is disabled, repository list in config is empty")
 		return nil, nil
 	}
 
@@ -337,7 +337,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 		mux.HandleFunc(config.Autoupdater.Endpoint, autoupdater.HTTPHandlerList)
 
 		logger.Info(
-			"registered github pull-request autoupdater http endpoint",
+			"registered github pull request autoupdater http endpoint",
 			logfields.Event("autoupdater_http_handler_registered"),
 			zap.String("endpoint", config.Autoupdater.Endpoint),
 		)
@@ -416,7 +416,7 @@ func main() {
 		)
 
 		if autoupdater == nil {
-			fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules and pull-request-updater triggers are disabled, nothing to do\n", *args.ConfigFile)
+			fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules and autoupdater triggers are disabled, nothing to do\n", *args.ConfigFile)
 			os.Exit(1)
 		}
 	}

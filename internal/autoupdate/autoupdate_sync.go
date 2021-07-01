@@ -21,8 +21,8 @@ const (
 )
 
 // Sync synchronized the states of the autoupdater queues with the current
-// pull-request state at GitHub.
-// Pull-Request information is queried from github.
+// pull request state at GitHub.
+// Pull request information is queried from github.
 // If a PR meets a condition to be enqueued for auto-updates it is enqueued.
 // If it meets a condition for not being autoupdated, it is dequeued.
 func (a *Autoupdater) Sync(ctx context.Context) error {
@@ -62,7 +62,7 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 	var stateFilter string
 	a.queuesLock.Lock()
 	// if no pull requests are queued for updates, there are no
-	// pull-requests that can be removed from the queue. Therefore it is
+	// pull requests that can be removed from the queue. Therefore it is
 	// sufficient to get information for open prs from GitHub.
 	if len(a.queues) == 0 {
 		stateFilter = "open"
@@ -71,7 +71,7 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 	}
 	a.queuesLock.Unlock()
 
-	// TODO: could we query less Pull-Requests by ignoring PRs that are
+	// TODO: could we query less pull requests by ignoring PRs that are
 	// closed and were last changed before goordinator started?
 	it := a.ghClient.ListPullRequests(ctx, owner, repo, stateFilter, "asc", "created")
 	for {
@@ -136,7 +136,7 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 			if err != nil {
 				stats.Failures++
 				logger.Warn(
-					"dequeing pull-request failed",
+					"dequeing pull request failed",
 					logFieldEventIgnored,
 					zap.Error(err),
 				)

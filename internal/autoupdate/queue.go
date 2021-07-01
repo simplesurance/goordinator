@@ -16,7 +16,7 @@ import (
 )
 
 // DefStaleTimeout is the default stale timeout.
-// A Pull-Request is considered as stale, when it is the first element in the
+// A pull request is considered as stale, when it is the first element in the
 // queue it's state has not changed for longer then this timeout.
 const DefStaleTimeout = 3 * time.Hour
 
@@ -25,15 +25,15 @@ const DefStaleTimeout = 3 * time.Hour
 // blocks the first element in the queue.
 const retryTimeout = 20 * time.Minute
 
-// queue implements a queue for automatically updating pull-request branches
+// queue implements a queue for automatically updating pull request branches
 // with their base branch.
-// Enqueued Pull-Requests can either be in active or suspended state.
-// Suspended Pull-Requests are not updated.
-// Active Pull-Requests are stored in a FIFO-queue. The first pull-request in
+// Enqueued pull requests can either be in active or suspended state.
+// Suspended pull requests are not updated.
+// Active pull requests are stored in a FIFO-queue. The first pull request in
 // the queue is kept uptodate with it's base branch.
 //
 // When the first element in the active queue changes, the q.updatePR()
-// operation runs for the Pull-Request.
+// operation runs for the pull request.
 // The update operation on the first active PR can also be triggered via
 // queue.ScheduleUpdateFirstPR().
 type queue struct {
@@ -41,7 +41,7 @@ type queue struct {
 
 	// active contains pull requests enqueued for being kept uptodate
 	active *orderedMap
-	// suspended contains pull-requests that are not kept uptodate
+	// suspended contains pull requests that are not kept uptodate
 	suspended map[int]*PullRequest
 	lock      sync.Mutex
 
@@ -55,9 +55,9 @@ type queue struct {
 	// ensure updates are run synchronously.
 	actionPool *routines.Pool
 	// executing contains a pointer to a runningTask struct describing the current or
-	// last running pull-request for that an action was run.
+	// last running pull request for that an action was run.
 	// It's cancelFunc field is used is used to cancel actions for a
-	// pull-request when it is suspended while an update operation  for it
+	// pull request when it is suspended while an update operation for it
 	// is executed.
 	executing atomic.Value // stored type: *runningTask
 
@@ -129,7 +129,7 @@ func (q *queue) cancelActionForPR(prNumber int) {
 }
 
 // IsEmpty returns true if the queue contains no active and suspended
-// pull-requests.
+// pull requests.
 func (q *queue) IsEmpty() bool {
 	q.lock.Lock()
 	defer q.lock.Unlock()
@@ -143,12 +143,12 @@ func (q *queue) _enqueueActive(pr *PullRequest) error {
 	pr.enqueuedSince = time.Now()
 	newFirstElemen, added := q.active.EnqueueIfNotExist(pr.Number, pr)
 	if !added {
-		return fmt.Errorf("pull-request already exist in active queue: %w", ErrAlreadyExists)
+		return fmt.Errorf("pull request already exist in active queue: %w", ErrAlreadyExists)
 	}
 
 	if newFirstElemen == nil {
 		q.logger.Debug(
-			"pull-request appended to active queue",
+			"pull request appended to active queue",
 			logfields.Event("pull_request_enqueued"),
 		)
 
@@ -156,7 +156,7 @@ func (q *queue) _enqueueActive(pr *PullRequest) error {
 	}
 
 	logger.Debug(
-		"pull-request appended to active queue, first element changed, scheduling action",
+		"pull request appended to active queue, first element changed, scheduling action",
 		logfields.Event("pull_request_enqueued"),
 	)
 
@@ -173,7 +173,7 @@ func (q *queue) Enqueue(pr *PullRequest) error {
 	defer q.lock.Unlock()
 
 	if _, exist := q.suspended[pr.Number]; exist {
-		return fmt.Errorf("pull-request already exist in suspended queue: %w", ErrAlreadyExists)
+		return fmt.Errorf("pull request already exist in suspended queue: %w", ErrAlreadyExists)
 	}
 
 	return q._enqueueActive(pr)
@@ -182,7 +182,7 @@ func (q *queue) Enqueue(pr *PullRequest) error {
 // Dequeue removes the pull request with the given number from the active or
 // suspended list.
 // If an update operation is currently running for it, it is canceled.
-// If the pull-request does not exist in the queue, ErrNotFound is returned.
+// If the pull request does not exist in the queue, ErrNotFound is returned.
 func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 	q.lock.Lock()
 
@@ -193,7 +193,7 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 		q.lock.Unlock()
 
 		logger.Info(
-			"pull-request removed from suspend queue",
+			"pull request removed from suspend queue",
 			logfields.Event("pull_request_dequeued"),
 		)
 
@@ -215,7 +215,7 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 	logger := q.logger.With(removed.LogFields...)
 
 	logger.Info(
-		"pull-request removed from auto-update queue",
+		"pull request removed from auto-update queue",
 		logfields.Event("pull_request_dequeued"),
 	)
 
@@ -272,7 +272,7 @@ func (q *queue) Suspend(prNumber int) error {
 	return nil
 }
 
-// ResumeAll resumes updates for all pull-request for that updating is
+// ResumeAll resumes updates for all pull request for that updating is
 // currently suspended.
 func (q *queue) ResumeAll() {
 	q.lock.Lock()
@@ -300,8 +300,8 @@ func (q *queue) ResumeAll() {
 }
 
 // Resume resumes updates for the pull request with the given number.
-// If the pull-request is not queued and suspended ErrNotFound is returned.
-// If the pull-request is the only active pull-request, the update operation is run for it.
+// If the pull request is not queued and suspended ErrNotFound is returned.
+// If the pull request is the only active pull request, the update operation is run for it.
 func (q *queue) Resume(prNumber int) error {
 	q.lock.Lock()
 	pr, exist := q.suspended[prNumber]
@@ -366,7 +366,7 @@ func (q *queue) scheduleUpdate(ctx context.Context, pr *PullRequest) {
 }
 
 func isPRIsClosedErr(err error) bool {
-	const wantedErrStr = "pull-request is closed"
+	const wantedErrStr = "pull request is closed"
 
 	if unWrappedErr := errors.Unwrap(err); unWrappedErr != nil {
 		if strings.Contains(unWrappedErr.Error(), wantedErrStr) {
@@ -392,18 +392,18 @@ func (q *queue) isPRStale(pr *PullRequest) bool {
 	return lastStatusChange.Add(q.staleTimeout).Before(time.Now())
 }
 
-// updatePR updates runs the update operation for the pull-request.
-// If the base-branch contains changes that are not in the pull-request branch,
+// updatePR updates runs the update operation for the pull request.
+// If the base-branch contains changes that are not in the pull request branch,
 // updating it, by merging the base-branch into the PR branch, is schedule via
 // the GitHub API.
 // If updating is not possible because a merge-conflict exist or another error
-// happened, a comment is posted to the Pull-Request and updating the
-// pull-request is suspended.
+// happened, a comment is posted to the pull request and updating the
+// pull request is suspended.
 // If it is already uptodate, it's GitHub combined status check is retrieved.
-// If it is in a failed or error state, the pull-request is suspended.
-// If the status is successful, nothing is done and the pull-request is kept as
+// If it is in a failed or error state, the pull request is suspended.
+// If the status is successful, nothing is done and the pull request is kept as
 // first element in the active queue.
-// If the pull-request was not updated, it's GitHub check status did not change
+// If the pull request was not updated, it's GitHub check status did not change
 // and it is the first element in the queue longer then q.staleTimeout it is
 // suspended.
 func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
@@ -439,7 +439,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	if baseBranchUpdateErr != nil {
 		if isPRIsClosedErr(baseBranchUpdateErr) {
 			logger.Info(
-				"updating branch with base branch failed, pull-request is closed, removing PR from queue",
+				"updating branch with base branch failed, pull request is closed, removing PR from queue",
 				logfields.Event("branch_update_failed"),
 				zap.Error(baseBranchUpdateErr),
 			)
@@ -518,7 +518,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	state, lastChange, err := q.prCombinedStatus(ctx, pr)
 	if err != nil {
 		logger.Error(
-			"retrieving status of pull-request failed, suspending PR to prevent that it blocks the queue",
+			"retrieving status of pull request failed, suspending PR to prevent that it blocks the queue",
 			logfields.Event("autoupdate_suspended"),
 			zap.Error(err),
 		)
@@ -541,7 +541,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	if q.isPRStale(pr) {
 		logger.Info(
-			"pull-request is stale, suspending pr updates",
+			"pull request is stale, suspending pr updates",
 			logfields.Event("pr_is_stale"),
 			zap.Time("last_pr_status_change", pr.GetStateUnchangedSince()),
 			zap.Duration("stale_timeout", q.staleTimeout),
@@ -559,7 +559,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	}
 
 	logger.Debug(
-		"pull-request is not stale",
+		"pull request is not stale",
 		logfields.Event("pr_not_stale"),
 		zap.Time("last_pr_status_change", pr.GetStateUnchangedSince()),
 		zap.Duration("stale_timeout", q.staleTimeout),
@@ -568,19 +568,19 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	switch state {
 	case "success":
 		logger.Info(
-			"pull-request is uptodate and status checks are successful",
+			"pull request is uptodate and status checks are successful",
 			logfields.Event("pr_ready_to_merge"),
 		)
 
 	case "pending":
 		logger.Info(
-			"pull-request is uptodate and status checks are pending",
+			"pull request is uptodate and status checks are pending",
 			logfields.Event("pr_status_pending"),
 		)
 
 	case "failure", "error":
 		logger.Info(
-			"pull-request is uptodate and status check are negative, suspending autoupdates for branch",
+			"pull request is uptodate and status check are negative, suspending autoupdates for branch",
 			logfields.Event("autoupdate_suspended"),
 			zap.Error(err),
 		)
@@ -595,7 +595,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	default:
 		logger.Warn(
-			"pull-request combined status has unexpected value, suspending autoupdates for PR",
+			"pull request combined status has unexpected value, suspending autoupdates for PR",
 			logfields.Event("pr_combined_status_unexpected"),
 		)
 

@@ -39,22 +39,22 @@ type Retryer interface {
 }
 
 // Autoupdater implements processing webhook events, querying the GitHub API
-// and enqueueing/dequeuing/triggering updating pull-requests with the
+// and enqueueing/dequeuing/triggering updating pull requests with the
 // base-branch.
-// Pull-Request branch updates are serialized per base-branch.
+// Pull request branch updates are serialized per base-branch.
 type Autoupdater struct {
 	triggerOnAutomerge bool
 	triggerLabels      map[string]struct{}
 	monitoredRepos     map[Repository]struct{}
 
 	// periodicTriggerIntv defines the time span between triggering
-	// updates for the first pull-request in the queues periodically.
+	// updates for the first pull request in the queues periodically.
 	periodicTriggerIntv time.Duration
 
 	ch     <-chan *github_prov.Event
 	logger *zap.Logger
 
-	// queues contains a queue for each base-branch for which Pull-Requests
+	// queues contains a queue for each base-branch for which pull requests
 	// are queued for autoupdates.
 	queues map[BranchID]*queue
 	// queuesLock must be hold when accessing queues
@@ -103,7 +103,7 @@ type Opt func(*Autoupdater)
 // NewAutoupdater creates an Autoupdater instance.
 // Only webhook events for repositories listed in monitoredRepositories are processed.
 // At least one trigger (triggerOnAutomerge or a label in triggerLabels) must
-// be provided to trigger enqueuing pull-requests for autoupdates via webhook events.
+// be provided to trigger enqueuing pull requests for autoupdates via webhook events.
 // When multiple event triggers are configured, the autoupdater reacts on each
 // received Event individually.
 func NewAutoupdater(
@@ -173,7 +173,7 @@ func (a *Autoupdater) isMonitoredRepository(owner, repositoryName string) bool {
 // eventLoop receives GitHub webhook events from the eventChan and trigger
 // periodic update operations on the first element in the queues.
 // Updates are triggered periodically every a.periodicTriggerIntv, to prevent
-// that Pull-Requests became stuck because GitHub webhook event was missed.
+// that pull requests became stuck because GitHub webhook event was missed.
 // The eventLoop terminates when a.shutdownChan is closed.
 func (a *Autoupdater) eventLoop() {
 	a.logger.Info("autoupdater event loop started")
@@ -217,29 +217,29 @@ func (a *Autoupdater) eventLoop() {
 //
 // The following actions are triggered on events:
 //
-//  - Enqueue a Pull-Request on:
+//  - Enqueue a pull request on:
 //    - PullRequestEvent auto_merge_enabled
 //    - PullRequestEvent labeled
 //
-//  - Dequeue a Pull-Request on:
+//  - Dequeue a pull request on:
 //    - PullRequestEvent closed
 //    - PullRequestEvent auto_merge_disabled
 //    - PullRequestEvent unlabeled
 //
-//  - Move a Pull-Request to another base branch queue on:
+//  - Move a pull request to another base branch queue on:
 //    - PullRequestEvent edited and Base object is set
 //
-//  - Resume updates for a suspended Pull-Request on:
+//  - Resume updates for a suspended pull request on:
 //    - PullRequestEvent synchronize for the pr branch
 //    - PushEvent for it's base-branch
 //    - StatusEvent with success state and the combined status for PullRequest is successful
 //
-//  - Suspend updates for a Pull-Request on:
+//  - Suspend updates for a pull request on:
 //    - StatusEvent with error or failure state
 //
 //  - Trigger update with base-branch on:
 //    - PushEvent for a base branch
-//    - (updates for Pull-Request branches on git-push are triggered via
+//    - (updates for pull request branches on git-push are triggered via
 //       PullRequest synchronize events)
 //
 // Other events are ignored and a debug message is logged for those.
@@ -324,7 +324,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 	logger.Debug("event received")
 
 	switch ev.GetAction() {
-	// TODO: If a Pull-Request is opened and in the open-dialog is
+	// TODO: If a pull request is opened and in the open-dialog is
 	// already the applied, will we receive a label-add event? Or do we
 	// also have to monitor Open-Events for PRs that have the label already?
 
@@ -351,7 +351,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 		pr, err := NewPullRequest(prNumber, branch)
 		if err != nil {
 			logger.Warn(
-				"ignoring event, incomplete pull-request information",
+				"ignoring event, incomplete pull request information",
 				logFieldEventIgnored,
 				zap.Error(err),
 			)
@@ -362,7 +362,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 		if err := a.Enqueue(ctx, bb, pr); err != nil {
 			logError(
 				logger,
-				"ignoring event, could not append pull-request to queue",
+				"ignoring event, could not append pull request to queue",
 				err,
 				logFieldEventIgnored,
 			)
@@ -376,7 +376,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 
 		if ev.GetPullRequest().GetState() == "closed" {
 			logger.Warn(
-				"ignoring event, label was added to a closed pull-request",
+				"ignoring event, label was added to a closed pull request",
 				logFieldEventIgnored,
 			)
 
@@ -411,7 +411,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 		if err != nil {
 			logError(
 				logger,
-				"ignoring event, incomplete pull-request information",
+				"ignoring event, incomplete pull request information",
 				err,
 				logFieldEventIgnored,
 			)
@@ -421,7 +421,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 
 		if err := a.Enqueue(ctx, bb, pr); err != nil {
 			logger.Error(
-				"ignoring event, enqueing pull-request failed",
+				"ignoring event, enqueing pull request failed",
 				logFieldEventIgnored,
 				zap.Error(err),
 			)
@@ -455,7 +455,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 		pr, err := NewPullRequest(prNumber, branch)
 		if err != nil {
 			logger.Warn(
-				"ignoring event, incomplete pull-request information",
+				"ignoring event, incomplete pull request information",
 				logFieldEventIgnored,
 				zap.Error(err),
 			)
@@ -505,7 +505,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 		pr, err := NewPullRequest(prNumber, branch)
 		if err != nil {
 			logger.Warn(
-				"ignoring event, incomplete pull-request information",
+				"ignoring event, incomplete pull request information",
 				logFieldEventIgnored,
 				zap.Error(err),
 			)
@@ -537,7 +537,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 		err = a.Resume(ctx, bb, prNumber)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
-				logger.Debug("no pull-requests suspended for the base branch")
+				logger.Debug("no pull requests suspended for the base branch")
 				return
 			}
 
@@ -583,7 +583,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 		logger.Info("base branch of PR changed, moved PR to new base-branch queue")
 
 	default:
-		logger.Debug("ignoring irrelevant pull-request event",
+		logger.Debug("ignoring irrelevant pull request event",
 			logFieldEventIgnored,
 		)
 	}
@@ -669,7 +669,7 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 	}
 }
 
-// Enqueue appends the Pull-Request to the autoupdate queue for baseBranch.
+// Enqueue appends the pull request to the autoupdate queue for baseBranch.
 // When it becomes the first element in the queue, it will be kept uptodate with it's baseBranch.
 // If the pr is already enqueued a ErrAlreadyExists error is returned.
 //
@@ -701,11 +701,11 @@ func (a *Autoupdater) Enqueue(ctx context.Context, baseBranch *BaseBranch, pr *P
 	return q.Enqueue(pr)
 }
 
-// Dequeue removes the Pull-Request with number prNumber from the autoupdate queue of baseBranch.
-// This disables keeping the pull-request update with baseBranch.
-// If no Pull-Request is queued with prNumber a ErrNotFound error is returned.
+// Dequeue removes the pull request with number prNumber from the autoupdate queue of baseBranch.
+// This disables keeping the pull request update with baseBranch.
+// If no pull request is queued with prNumber a ErrNotFound error is returned.
 //
-// If the Pull-Request was the only element in the baseBranch queue, the queue is removed.
+// If the pull request was the only element in the baseBranch queue, the queue is removed.
 func (a *Autoupdater) Dequeue(ctx context.Context, baseBranch *BaseBranch, prNumber int) (*PullRequest, error) {
 	var q *queue
 	var exist bool
@@ -773,7 +773,7 @@ func (a *Autoupdater) SuspendUpdates(ctx context.Context, owner, repo string, br
 	return errors
 }
 
-// ResumeIfStatusIsSuccess resumes updating for queued Pull-Requests of the given branch
+// ResumeIfStatusIsSuccess resumes updating for queued pull requests of the given branch
 // names, if updates for it are currently suspended and the GitHub API returns
 // a combined successful check status.
 func (a *Autoupdater) ResumeIfStatusIsSuccess(ctx context.Context, owner, repo string, branchNames []string) {
@@ -792,8 +792,8 @@ func (a *Autoupdater) ResumeIfStatusIsSuccess(ctx context.Context, owner, repo s
 	}
 }
 
-// Resume resumes updates for a pull-request.
-// If the pull-request is not queued for updates and in suspended state
+// Resume resumes updates for a pull request.
+// If the pull request is not queued for updates and in suspended state
 // ErrNotFound is returned.
 func (a *Autoupdater) Resume(ctx context.Context, baseBranch *BaseBranch, prNumber int) error {
 	a.queuesLock.Lock()
@@ -845,7 +845,7 @@ func (a *Autoupdater) ChangeBaseBranch(
 }
 
 // ScheduleUpdateFirstPR schedules the update operation for the first
-// pull-request in the queue.
+// pull request in the queue.
 func (a *Autoupdater) TriggerUpdateIfFirst(
 	ctx context.Context,
 	baseBranch *BaseBranch,

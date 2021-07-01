@@ -26,8 +26,8 @@ const condCheckInterval = 20 * time.Millisecond
 const condWaitTimeout = 5 * time.Second
 
 // mustGetActivePR fetches from the base-branch queue of the autoupdater the
-// pull-request with the given pull-request number.
-// If the BaseBranch queue or the pull-request does not exist, the testcase fails.
+// pull request with the given pull request number.
+// If the BaseBranch queue or the pull request does not exist, the testcase fails.
 func mustGetActivePR(t *testing.T, autoupdater *Autoupdater, baseBranch *BaseBranch, prNumber int) *PullRequest {
 	t.Helper()
 
@@ -45,7 +45,7 @@ func mustGetActivePR(t *testing.T, autoupdater *Autoupdater, baseBranch *BaseBra
 
 	pr := queue.active.Get(prNumber)
 	if pr == nil {
-		t.Error("pull-request does not exist in active queue")
+		t.Error("pull request does not exist in active queue")
 		return nil
 	}
 

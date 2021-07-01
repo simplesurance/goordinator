@@ -42,5 +42,5 @@ func (r *UpdateRunner) LogFields() []zap.Field {
 }
 
 func (r *UpdateRunner) String() string {
-	return fmt.Sprintf("github update base branch: repo: %s/%s, pull-request: #%d", r.repository, r.repositoryOwner, r.pullRequestNumber)
+	return fmt.Sprintf("github update base branch: repo: %s/%s, pull request: #%d", r.repository, r.repositoryOwner, r.pullRequestNumber)
 }

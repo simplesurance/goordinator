@@ -28,9 +28,9 @@ log_time_key = "time_iso8601"
   owner = "simplesurance"
   repository = "goordinator"
 
-# enqueue/dequeue a Pull-Request for autoupdates when one of the labels is added/removed
+# enqueue/dequeue a pull request for autoupdates when one of the labels is added/removed
 autoupdater.trigger_labels = ["queue-add"]
-# enqueue/dequeue a Pull-Request for autoupdates when auto-merge is enabled
+# enqueue/dequeue a pull request for autoupdates when auto-merge is enabled
 # (https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
 autoupdater.trigger_on_auto_merge = true
 # local http server endpoint under which a minimal webinterface is served
@@ -92,6 +92,6 @@ autoupdater.http_endpoint = "/autoupdater"
   [[rule.action]]
     # updatebranch updates a GitHub pull request with the changes from its
     # base-branch. The changes from the base branch are merged into the
-    # Pull-Request branch.
+    # pull request branch.
     # Requires github_api_token to be defined.
     action = "updatebranch"
