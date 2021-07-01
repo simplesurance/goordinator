@@ -16,21 +16,26 @@ The supported actions are:
 All actions are executed in parallel and retried if they fail until a retry
 timeout expired (default: 2h).
 
-### Serialized GitHub Branch Autoupdater
+### Serialized Synchronization of GitHub Pull Request with their Base Branch
 
-Autoupdater keeps Pull-Requests (PR) updated with their base branch.
-Pull-Requests are added to a per base branch queue and the first pull-request in
-the queue is kept up to date with its base branch.
-If merging the base branch into the PR branch fails, its check status becomes
-negative or the PR became stale, updates for it are suspended.
+Autoupdater keeps pull requests (PR) updated with their base branch. \
+Pull requests are added to a per base branch queue and the first pull-request in
+the queue is kept up to date with its base branch. \
+Updates for the PR branch are suspended when:
+
+- the base-branch can not be merged into the PR branch because of a
+  merge-conflict,
+- its GitHub check status becomes negative or
+- it became stale and its status have not changed for a longer time period.
+
 Updates for it are resumed when the base-branch or the PR branch changed or the
 check status of the PR became positive.
 
-Autoupdater is used together with [Github's auto-merge
+Autoupdater is used together with [Githubs auto-merge
 feature](https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
 or a comparable service to provide a serialized merge-queue.
 The autoupdater serializes updates per base branch, to avoid a race between
-pull-requests to get updates the fastest and have a successful CI check first.
+pull requests to get updates the fastest and have a successful CI check first.
 
 Without an external auto-merge service the autoupdater is useless.
 
