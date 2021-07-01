@@ -253,10 +253,6 @@ func (q *queue) Suspend(prNumber int) error {
 	logger := q.logger.With(pr.LogFields...)
 
 	q.suspended[prNumber] = pr
-	logger.Info(
-		"updates for pr suspended",
-		logfields.Event("pull_request_updates_suspended"),
-	)
 
 	if newFirstElem == nil {
 		return nil
@@ -318,17 +314,12 @@ func (q *queue) Resume(prNumber int) error {
 
 	if err := q.Enqueue(pr); err != nil {
 		if errors.Is(err, ErrAlreadyExists) {
-			q.logger.Warn("pr was in active and suspend queue, removed it from suspend queue")
+			logger.Warn("pr was in active and suspend queue, removed it from suspend queue")
 			return nil
 		}
 
 		return fmt.Errorf("enqueing previously suspended pr failed: %w", err)
 	}
-
-	logger.Info(
-		"pr moved from suspended to active queue",
-		logfields.Event("pull_request_updates_resumed"),
-	)
 
 	return nil
 }
@@ -464,12 +455,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 			return
 		}
 
-		logger.Info(
-			"updating branch with base branch failed, suspending autoupdates for branch",
-			logfields.Event("branch_update_failed"),
-			zap.Error(baseBranchUpdateErr),
-		)
-
 		// use a new context, otherwise it is forwarded for an
 		// action on another branch, and cancelling action for
 		// one branch, would cancel multiple others
@@ -481,6 +466,13 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 			)
 			return
 		}
+
+		logger.Info(
+			"updates suspended, updating pr branch with base branch failed",
+			logFieldReason("update_with_branch_failed"),
+			logEventUpdatesSuspended,
+			zap.Error(baseBranchUpdateErr),
+		)
 
 		// the current ctx got cancelled in q.Suspend(), use
 		// another context to prevent that posting the comment
@@ -517,12 +509,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	state, lastChange, err := q.prCombinedStatus(ctx, pr)
 	if err != nil {
-		logger.Error(
-			"retrieving status of pull request failed, suspending PR to prevent that it blocks the queue",
-			logfields.Event("autoupdate_suspended"),
-			zap.Error(err),
-		)
-
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
 				"suspending PR after retrieving its status failed, failed",
@@ -530,6 +516,13 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 				zap.Error(err),
 			)
 		}
+
+		logger.Error(
+			"updates suspended, retrieving combined check status failed",
+			logEventUpdatesSuspended,
+			logFieldReason("retrieving_combined_check_status_failed"),
+			zap.Error(baseBranchUpdateErr),
+		)
 
 		return
 	}
@@ -540,13 +533,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	logger.Debug("retrieved combined pr status")
 
 	if q.isPRStale(pr) {
-		logger.Info(
-			"pull request is stale, suspending pr updates",
-			logfields.Event("pr_is_stale"),
-			zap.Time("last_pr_status_change", pr.GetStateUnchangedSince()),
-			zap.Duration("stale_timeout", q.staleTimeout),
-		)
-
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
 				"suspending PR because it's stale, failed",
@@ -554,6 +540,13 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 				zap.Error(err),
 			)
 		}
+
+		logger.Info(
+			"updates suspended, pull request is stale",
+			logFieldReason("stale"),
+			zap.Time("last_pr_status_change", pr.GetStateUnchangedSince()),
+			zap.Duration("stale_timeout", q.staleTimeout),
+		)
 
 		return
 	}
@@ -579,12 +572,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		)
 
 	case "failure", "error":
-		logger.Info(
-			"pull request is uptodate and status check are negative, suspending autoupdates for branch",
-			logfields.Event("autoupdate_suspended"),
-			zap.Error(err),
-		)
-
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
 				"suspending PR because it's PR status is negative, failed",
@@ -592,6 +579,14 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 				zap.Error(err),
 			)
 		}
+
+		logger.Info(
+			"updates suspended, status check is negative",
+			logFieldReason("status_check_negative"),
+			logEventUpdatesSuspended,
+			logfields.CheckStatus(state),
+			zap.Error(err),
+		)
 
 	default:
 		logger.Warn(
@@ -605,7 +600,17 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
+
+			return
 		}
+
+		logger.Info(
+			"updates suspended, status check value is invalid",
+			logFieldReason("status_check_invalid"),
+			logEventUpdatesSuspended,
+			logfields.CheckStatus(state),
+			zap.Error(err),
+		)
 	}
 }
 
@@ -690,12 +695,12 @@ func (q *queue) SuspendedPRsbyBranch(branchNames []string) []*PullRequest {
 func (q *queue) resumeIfPRStatusIsSuccessful(ctx context.Context, pr *PullRequest) (bool, error) {
 	status, _, err := q.prCombinedStatus(ctx, pr)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("retrieving combined check status failed: %w", err)
 	}
 
 	if status == "success" {
 		if err := q.Resume(pr.Number); err != nil {
-			return false, err
+			return false, fmt.Errorf("resuming updates failed: %w", err)
 		}
 
 		return true, nil
@@ -715,7 +720,23 @@ func (q *queue) ScheduleResumePRIfStatusSuccessful(ctx context.Context, pr *Pull
 
 		q.setExecuting(&runningTask{pr: pr.Number, cancelFunc: cancelFunc})
 
-		_, _ = q.resumeIfPRStatusIsSuccessful(ctx, pr)
+		resumed, err := q.resumeIfPRStatusIsSuccessful(ctx, pr)
+		if err != nil && errors.Is(err, ErrNotFound) {
+			q.logger.With(pr.LogFields...).Info(
+				"resuming updates if pr status is successful failed",
+				zap.Error(err),
+			)
+		}
+
+		if !resumed {
+			return
+		}
+
+		q.logger.With(pr.LogFields...).Info(
+			"updates resumed, combined check status is successful",
+			logEventUpdatesResumed,
+			logFieldReason("status_check_successful"),
+		)
 	})
 
 	q.logger.With(pr.LogFields...).

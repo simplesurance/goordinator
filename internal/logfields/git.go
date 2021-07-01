@@ -25,3 +25,7 @@ func Commit(val string) zap.Field {
 func Branch(val string) zap.Field {
 	return zap.String("git.branch", val)
 }
+
+func CheckStatus(val string) zap.Field {
+	return zap.String("git.check_status", val)
+}

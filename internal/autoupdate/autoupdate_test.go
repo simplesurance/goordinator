@@ -241,8 +241,10 @@ func TestSuspendAndResume(t *testing.T) {
 	require.NotNil(t, queue)
 	assert.Equal(t, queue.activeLen(), 1)
 
-	errs := autoupdater.SuspendUpdates(context.Background(), repoOwner, repo, []string{pr.Branch})
+	updatedPRs, errs := autoupdater.SuspendUpdates(context.Background(), repoOwner, repo, []string{pr.Branch})
+
 	require.Empty(t, errs)
+	assert.Contains(t, updatedPRs, pr)
 
 	assert.Equal(t, queue.activeLen(), 0)
 	assert.Equal(t, queue.suspendedLen(), 1)
@@ -293,7 +295,7 @@ func TestPushToPRBranchResumesPR(t *testing.T) {
 	assert.Equal(t, queue.activeLen(), 1)
 	assert.Equal(t, queue.suspendedLen(), 0)
 
-	errs := autoupdater.SuspendUpdates(context.Background(), repoOwner, repo, []string{pr.Branch})
+	_, errs := autoupdater.SuspendUpdates(context.Background(), repoOwner, repo, []string{pr.Branch})
 	require.Empty(t, errs)
 
 	assert.Equal(t, queue.activeLen(), 0)
