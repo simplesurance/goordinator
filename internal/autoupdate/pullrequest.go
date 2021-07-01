@@ -41,8 +41,8 @@ func NewPullRequest(nr int, branch string) (*PullRequest, error) {
 	}, nil
 }
 
-// Equal returns true if p and other are of type PullRequest and it's Number
-// field contain the same value.
+// Equal returns true if p and other are of type PullRequest and its Number
+// field contains the same value.
 func (p *PullRequest) Equal(other interface{}) bool {
 	p1, ok := other.(*PullRequest)
 	if !ok {
