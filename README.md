@@ -29,7 +29,7 @@ check status of the PR became positive.
 Autoupdater is used together with [Github's auto-merge
 feature](https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
 or a comparable service to provide a serialized merge-queue.
-The autoupdater serializes updates per base-branch, to avoid a race between
+The autoupdater serializes updates per base branch, to avoid a race between
 pull-requests to get updates the fastest and have a successful CI check first.
 
 Without an external auto-merge service the autoupdater is useless.
