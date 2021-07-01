@@ -290,7 +290,7 @@ func hide(in string) string {
 func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Client, mux *http.ServeMux) (*autoupdate.Autoupdater, chan<- *github.Event) {
 	if !config.Autoupdater.TriggerOnAutoMerge && len(config.Autoupdater.Labels) == 0 {
 		logger.Info(
-			"github pull-request updater is disabled, trigger_on_auto_merge is false and trigger_labels in config is empty",
+			"autoupdater is disabled, trigger_on_auto_merge is false and trigger_labels in config is empty",
 			logfields.Event("autoupdater_disabled"),
 		)
 
@@ -298,12 +298,12 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 	}
 
 	if len(config.GithubAPIToken) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: config file %s: github_api_token must be provided when autoupdate is enabled", *args.ConfigFile)
+		fmt.Fprintf(os.Stderr, "ERROR: config file %s: github_api_token must be provided when autoupdater is enabled", *args.ConfigFile)
 		os.Exit(1)
 	}
 
 	if len(config.HTTPGithubWebhookEndpoint) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: config file :%s: github_webhook_endpoint must be provided when autoupdate is enabled", *args.ConfigFile)
+		fmt.Fprintf(os.Stderr, "ERROR: config file :%s: github_webhook_endpoint must be provided when autoupdater is enabled", *args.ConfigFile)
 		os.Exit(1)
 	}
 
