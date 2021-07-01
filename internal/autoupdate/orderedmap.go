@@ -39,7 +39,7 @@ func (m *orderedMap) EnqueueIfNotExist(key int, val *PullRequest) (newFirstElem 
 }
 
 // Get returns the value for the given key.
-// If  they key does not exist, nil is returned.
+// If the key does not exist, nil is returned.
 func (m *orderedMap) Get(key int) *PullRequest {
 	v, exist := m.m[key]
 	if !exist {
