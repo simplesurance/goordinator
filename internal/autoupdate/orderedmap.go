@@ -69,7 +69,7 @@ func (m *orderedMap) Dequeue(key int) (removedElem, newFirstElem *PullRequest) {
 }
 
 // First returns the first element in the map.
-// If the map is empty, nil is returned
+// If the map is empty, nil is returned.
 func (m *orderedMap) First() *PullRequest {
 	if e := m.order.Front(); e != nil {
 		return e.Value.(*PullRequest)
