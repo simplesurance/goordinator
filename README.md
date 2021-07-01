@@ -26,7 +26,7 @@ negative or the PR became stale, updates for it are suspended.
 Updates for it are resumed when the base-branch or the PR branch changed or the
 check status of the PR became positive.
 
-Autoupdate is used together with [Github's auto-merge
+Autoupdater is used together with [Github's auto-merge
 feature](https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
 or a comparable service to provide a serialized merge-queue.
 The autoupdater serializes updates per base-branch, to avoid a race between
