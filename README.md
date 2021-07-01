@@ -21,7 +21,7 @@ timeout expired (default: 2h).
 Autoupdater keeps Pull-Requests (PR) updated with their base branch.
 Pull-Requests are added to a per base branch queue and the first pull-request in
 the queue is kept up to date with its base branch.
-If merging the base-branch into the PR branch fails, it's check status becomes
+If merging the base branch into the PR branch fails, its check status becomes
 negative or the PR became stale, updates for it are suspended.
 Updates for it are resumed when the base-branch or the PR branch changed or the
 check status of the PR became positive.
