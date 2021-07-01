@@ -546,6 +546,12 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			return
 		}
 
+		logger.Info(
+			"updates resumed, pr branch changed",
+			logEventUpdatesResumed,
+			logFieldReason("branch_changed"),
+		)
+
 		return
 
 	case "edited":
@@ -636,6 +642,7 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 
 	logger = logger.With(
 		zap.Strings("git.branches", branches),
+		logfields.CheckStatus(ev.GetState()),
 		logfields.RepositoryOwner(owner),
 		logfields.Repository(repo),
 	)
@@ -653,9 +660,17 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 
 	switch ev.GetState() {
 	case "error", "failure":
-		err := a.SuspendUpdates(ctx, owner, repo, branches)
+		updatedPrs, err := a.SuspendUpdates(ctx, owner, repo, branches)
 		if len(err) != 0 {
 			logger.Error("suspending updates failed", zap.Errors("errors", err))
+		}
+
+		for _, pr := range updatedPrs {
+			logger.With(pr.LogFields...).Info(
+				"updates suspended, status check is negative",
+				logFieldReason("status_check_negative"),
+				logEventUpdatesSuspended,
+			)
 		}
 
 	case "success":
@@ -745,10 +760,17 @@ func (a *Autoupdater) ResumeAllForBaseBranch(ctx context.Context, baseBranch *Ba
 	}
 }
 
-// SuspendUpdates suspend updates for all Pull Requests that are queued and
+// SuspendUpdates suspend updates for all pull requests that are queued and
 // their branch name matches one of branchNames.
-func (a *Autoupdater) SuspendUpdates(ctx context.Context, owner, repo string, branchNames []string) []error {
+// It returns a list of pull requests for which updates were suspended.
+func (a *Autoupdater) SuspendUpdates(
+	ctx context.Context,
+	owner string,
+	repo string,
+	branchNames []string,
+) ([]*PullRequest, []error) {
 	var errors []error
+	var updatedPrs []*PullRequest
 
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
@@ -766,11 +788,11 @@ func (a *Autoupdater) SuspendUpdates(ctx context.Context, owner, repo string, br
 					pr.Number, baseBranch, err,
 				))
 			}
+			updatedPrs = append(updatedPrs, pr)
 		}
-
 	}
 
-	return errors
+	return updatedPrs, errors
 }
 
 // ResumeIfStatusIsSuccess resumes updating for queued pull requests of the given branch
