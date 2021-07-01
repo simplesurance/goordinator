@@ -22,7 +22,7 @@ const (
 
 // Sync synchronized the states of the autoupdater queues with the current
 // pull-request state at GitHub.
-// Pull-Request information are queried from github.
+// Pull-Request information is queried from github.
 // If a PR meets a condition to be enqueued for auto-updates it is enqueued.
 // If it meets a condition for not being autoupdated, it is dequeued.
 func (a *Autoupdater) Sync(ctx context.Context) error {
