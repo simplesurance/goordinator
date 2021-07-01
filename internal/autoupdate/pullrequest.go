@@ -19,7 +19,7 @@ type PullRequest struct {
 	enqueuedSince time.Time
 
 	stateUnchangedSince time.Time
-	lock                sync.Mutex // must be hold when accessing stateUnchangedSince
+	lock                sync.Mutex // must be held when accessing stateUnchangedSince
 }
 
 func NewPullRequest(nr int, branch string) (*PullRequest, error) {
