@@ -234,13 +234,11 @@ func (a *Autoupdater) eventLoop() {
 //    - PushEvent for it's base-branch
 //    - StatusEvent with success state and the combined status for PullRequest is successful
 //
-//  - Suspend updates for a pull request on:
-//    - StatusEvent with error or failure state
-//
 //  - Trigger update with base-branch on:
 //    - PushEvent for a base branch
 //    - (updates for pull request branches on git-push are triggered via
 //       PullRequest synchronize events)
+//    - StatusEvent with error or failure state
 //
 // Other events are ignored and a debug message is logged for those.
 func (a *Autoupdater) processEvent(ctx context.Context, event *github_prov.Event) {
@@ -563,10 +561,10 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			return
 		}
 
-		err = a.TriggerUpdateIfFirst(ctx, bb, &PRNumber{Number: prNumber})
+		_, err = a.TriggerUpdateIfFirst(ctx, bb, &PRNumber{Number: prNumber})
 		if err == nil {
 			logger.Info(
-				"update for pull request triggere",
+				"update for pull request triggered",
 				logfields.Event("pull_request_update_triggered"),
 				logFieldReason("branch_changed"),
 			)
@@ -712,14 +710,18 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 
 	switch ev.GetState() {
 	case "error", "failure":
-		updatedPrs, err := a.SuspendUpdates(ctx, owner, repo, branches)
-		if len(err) != 0 {
-			logger.Error("suspending updates failed", zap.Errors("errors", err))
-		}
+		for _, branch := range branches {
+			pr, err := a.TriggerUpdateIfFirstAllQueues(ctx, owner, repo, &PRBranch{BranchName: branch})
+			if err != nil {
+				if !errors.Is(err, ErrNotFound) {
+					logger.Error("triggering  update failed", zap.Error(err))
+				}
 
-		for _, pr := range updatedPrs {
+				continue
+			}
+
 			logger.With(pr.LogFields...).Info(
-				"updates suspended, status check is negative",
+				"update triggered, negative status check event received",
 				logFieldReason("status_check_negative"),
 				logEventUpdatesSuspended,
 			)
@@ -919,21 +921,30 @@ func (a *Autoupdater) ChangeBaseBranch(
 
 // TriggerUpdateIfFirst schedules the update operation for the first pull
 // request in the queue if it matches prSpec.
+// If an update was triggered, the PullRequest is returned.
 // If the first PR does not match prSpec, ErrNotFound is returned.
 func (a *Autoupdater) TriggerUpdateIfFirst(
 	ctx context.Context,
 	baseBranch *BaseBranch,
 	prSpec PRSpecifier,
-) error {
-	logger := a.logger.With(baseBranch.Logfields...).With(prSpec.LogField())
-
+) (*PullRequest, error) {
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
 
 	q, exist := a.queues[baseBranch.BranchID]
 	if !exist {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
+
+	return a._triggerUpdateIfFirst(ctx, q, prSpec)
+}
+
+func (a *Autoupdater) _triggerUpdateIfFirst(
+	ctx context.Context,
+	q *queue,
+	prSpec PRSpecifier,
+) (*PullRequest, error) {
+	logger := a.logger.With(q.baseBranch.Logfields...).With(prSpec.LogField())
 
 	// there is a chance of a race here, the pr might not be first anymore
 	// when ScheduleUpdateFirstPR() is called, this does not matter, if it
@@ -941,28 +952,59 @@ func (a *Autoupdater) TriggerUpdateIfFirst(
 	first := q.FirstActive()
 	if first == nil {
 		logger.Debug("update not trigger, pr is not first in queue")
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
 
 	switch v := prSpec.(type) {
 	case *PRNumber:
 		if first.Number == v.Number {
 			q.ScheduleUpdate(ctx)
-			return nil
+			return first, nil
 		}
 
 	case *PRBranch:
 		if first.Branch == v.BranchName {
 			q.ScheduleUpdate(ctx)
-			return nil
+			return first, nil
 		}
 
 	default:
 		logger.DPanic("unsupported type received", zap.String("type", fmt.Sprintf("%T", v)))
-		return fmt.Errorf("unsupported type of prSpec parameter: %T", v)
+		return nil, fmt.Errorf("unsupported type of prSpec parameter: %T", v)
 	}
 
-	return ErrNotFound
+	return nil, ErrNotFound
+}
+
+// TriggerUpdateIfFirstAllQueues does the same then
+// TriggerUpdateIfFirstAllQueues but does not require to specify the base
+// branch name.
+func (a *Autoupdater) TriggerUpdateIfFirstAllQueues(
+	ctx context.Context,
+	repoOwner string,
+	repo string,
+	prSpec PRSpecifier,
+) (*PullRequest, error) {
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	for branchID, q := range a.queues {
+		if branchID.Repository != repo || branchID.RepositoryOwner != repoOwner {
+			continue
+		}
+
+		pr, err := a._triggerUpdateIfFirst(ctx, q, prSpec)
+		if err == nil {
+			return pr, nil
+		}
+
+		if errors.Is(err, ErrNotFound) {
+			continue
+		}
+		return nil, fmt.Errorf("queue: %s: %w", q.String(), err)
+	}
+
+	return nil, ErrNotFound
 }
 
 // Start starts the event-loop in a go-routine.

@@ -86,6 +86,10 @@ func newQueue(base *BaseBranch, logger *zap.Logger, ghClient GithubClient, retry
 	return &q
 }
 
+func (q *queue) String() string {
+	return fmt.Sprintf("queue for base branch: %s", q.baseBranch.String())
+}
+
 type runningTask struct {
 	pr         int
 	cancelFunc context.CancelFunc
