@@ -22,8 +22,8 @@ func newHTTPRespWriter(logger *zap.Logger, resp http.ResponseWriter) *httpRespWr
 }
 
 // WriteStr writes a string to the http response write.
-// If an error happens, it is logged with info priority and false is returned.
-// If it suceeded true is returned.
+// If it is successul true is returned.
+// If it fails, the error is logged with info priority and false is returned.
 func (rw *httpRespWriter) WriteStr(str string) (wasSuccessful bool) {
 	_, err := rw.ResponseWriter.Write([]byte(str))
 	if err != nil {
@@ -35,6 +35,8 @@ func (rw *httpRespWriter) WriteStr(str string) (wasSuccessful bool) {
 }
 
 func (a *Autoupdater) HTTPHandlerList(respWr http.ResponseWriter, req *http.Request) {
+	const separator = "------------------------------------------------------------------------------"
+
 	var result strings.Builder
 	// TODO: write to resp directly instead of to strings.Builder
 
@@ -50,6 +52,7 @@ func (a *Autoupdater) HTTPHandlerList(respWr http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	var queueCnt int
 	for _, queue := range a.queues {
 		success := resp.WriteStr(fmt.Sprintf(
 			"Base: %s/%s %s\n",
@@ -76,6 +79,12 @@ func (a *Autoupdater) HTTPHandlerList(respWr http.ResponseWriter, req *http.Requ
 				"\tPR: %-4d\tAdded: %s, \t%s\n", k, pr.enqueuedSince.Format(time.RFC822), "suspended",
 			))
 		}
+
+		if queueCnt < len(a.queues)-1 {
+			result.WriteString("\n" + separator + "\n\n")
+		}
+
+		queueCnt++
 	}
 
 	resp.WriteStr(result.String())
