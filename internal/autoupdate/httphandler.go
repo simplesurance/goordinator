@@ -18,6 +18,18 @@ func (a *Autoupdater) HTTPHandlerList(resp http.ResponseWriter, req *http.Reques
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
 
+	if len(a.queues) == 0 {
+		_, err := resp.Write([]byte("no pull-requests queued for updates\n"))
+		if err != nil {
+			a.logger.Info(
+				"writing to http-response writer failed",
+				zap.Error(err),
+			)
+		}
+
+		return
+	}
+
 	for _, queue := range a.queues {
 		result.WriteString(fmt.Sprintf(
 			"Base: %s/%s %s\n",
