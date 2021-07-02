@@ -22,6 +22,6 @@ func (s *syncStat) LogFields() []zap.Field {
 		zap.Uint("pr_sync.failures", s.Failures),
 		zap.Uint("pr_sync.enqueued", s.Enqueued),
 		zap.Uint("pr_sync.dequeued", s.Dequeued),
-		zap.Uint("pr_sync.out_of_sync", s.Seen-s.Enqueued-s.Dequeued),
+		zap.Uint("pr_sync.out_of_sync", s.Enqueued+s.Dequeued),
 	}
 }
