@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-github/v35/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -624,7 +625,7 @@ func TestSuccessStatusEventResumesPRs(t *testing.T) {
 	assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
 }
 
-func TestFailedStatusEventSuspendsPRs(t *testing.T) {
+func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
 	evChan := make(chan *github_prov.Event, 1)
@@ -650,7 +651,19 @@ func TestFailedStatusEventSuspendsPRs(t *testing.T) {
 		}).
 		AnyTimes()
 
-	mockCombindedStatus(ghClient, "success", time.Now(), nil).AnyTimes()
+	var failChecks atomic.Bool
+	ghClient.EXPECT().
+		CombinedStatus(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
+		DoAndReturn(func(_ context.Context, owner, repo, ref string) (string, time.Time, error) {
+			if failChecks.Load() {
+				if ref == pr1.Branch || ref == pr3.Branch {
+					t.Logf("FAILED, PR BRANCH: %q\n", ref)
+					return "failed", time.Now(), nil
+				}
+			}
+			t.Logf("SUCCESS, PR BRANCH: %q\n", ref)
+			return "success", time.Now(), nil
+		}).MinTimes(4)
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -692,10 +705,11 @@ func TestFailedStatusEventSuspendsPRs(t *testing.T) {
 	waitForActiveQueueLen(t, queueBaseBranch2, 1)
 	assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
 
+	failChecks.Store(true)
 	evChan <- &github_prov.Event{Event: newStatusEvent("failure", pr1.Branch, pr2.Branch, pr3.Branch)}
 
-	waitForSuspendQueueLen(t, queueBaseBranch1, 2)
-	assert.Equal(t, 0, queueBaseBranch1.activeLen(), "active queue")
+	waitForSuspendQueueLen(t, queueBaseBranch1, 1)
+	assert.Equal(t, 1, queueBaseBranch1.activeLen(), "active queue")
 
 	waitForActiveQueueLen(t, queueBaseBranch2, 0)
 	assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")

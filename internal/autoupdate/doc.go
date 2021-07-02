@@ -18,7 +18,7 @@
 // Per base-branch, the autoupdater updates automatically the first PR in the
 // queue with it's base branch. It serializes updating per basebranch, to avoid
 // a race between multiples pull requests that result in unnecessary CI runs and merges.
-// When updating a pull request branch with it's  base-branch is not possible,
+// When updating a pull request branch with it's base-branch is not possible,
 // a failed status check for the pull request was reported, or the PR became
 // stale updates for it are suspended.
 // This prevents that pull requests that can not be merged block the autoupdate
