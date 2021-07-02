@@ -11,7 +11,7 @@ Goordinator listens for GitHub webhook events, runs their JSON payloads
 through a JQ filter query and triggers actions if the filter matches.
 The supported actions are:
 - posting a http-request
-- updating a GitHub branch with it's base branch.
+- updating a GitHub branch with its base branch.
 
 All actions are executed in parallel and retried if they fail until a retry
 timeout expired (default: 2h).
