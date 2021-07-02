@@ -28,8 +28,9 @@ Updates for the PR branch are suspended when:
 - its GitHub check status becomes negative or
 - it became stale and its status have not changed for a longer time period.
 
-Updates for it are resumed when the base-branch or the PR branch changed or the
-check status of the PR became positive.
+Updates for it are resumed when:
+- the PR or its base branch changed
+- the PR's status(es) check(s) became positive.
 
 Autoupdater is used together with [Githubs auto-merge
 feature](https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
