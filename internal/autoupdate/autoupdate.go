@@ -563,7 +563,22 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			return
 		}
 
-		a.TriggerUpdateIfFirst(ctx, bb, prNumber)
+		err = a.TriggerUpdateIfFirst(ctx, bb, &PRNumber{Number: prNumber})
+		if err == nil {
+			logger.Info(
+				"update for pull request triggere",
+				logfields.Event("pull_request_update_triggered"),
+				logFieldReason("branch_changed"),
+			)
+
+			// Resume not necessary, PR is alreay in the active
+			// queue and the first element
+			return
+		}
+
+		if !errors.Is(err, ErrNotFound) {
+			logger.Error("triggering update for first pr failed", zap.Error(err))
+		}
 
 		err = a.Resume(ctx, bb, prNumber)
 		if err != nil {
@@ -902,32 +917,52 @@ func (a *Autoupdater) ChangeBaseBranch(
 	return nil
 }
 
-// ScheduleUpdateFirstPR schedules the update operation for the first
-// pull request in the queue.
+// TriggerUpdateIfFirst schedules the update operation for the first pull
+// request in the queue if it matches prSpec.
+// If the first PR does not match prSpec, ErrNotFound is returned.
 func (a *Autoupdater) TriggerUpdateIfFirst(
 	ctx context.Context,
 	baseBranch *BaseBranch,
-	prNumber int,
-) {
-	logger := a.logger.With(baseBranch.Logfields...).With(logfields.PullRequest(prNumber))
+	prSpec PRSpecifier,
+) error {
+	logger := a.logger.With(baseBranch.Logfields...).With(prSpec.LogField())
 
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
 
 	q, exist := a.queues[baseBranch.BranchID]
 	if !exist {
-		return
+		return ErrNotFound
 	}
 
 	// there is a chance of a race here, the pr might not be first anymore
 	// when ScheduleUpdateFirstPR() is called, this does not matter, if it
 	// happens we run the operation one more time then necessary.
 	first := q.FirstActive()
-	if first == nil || first.Number != prNumber {
+	if first == nil {
 		logger.Debug("update not trigger, pr is not first in queue")
+		return ErrNotFound
 	}
 
-	q.ScheduleUpdate(ctx)
+	switch v := prSpec.(type) {
+	case *PRNumber:
+		if first.Number == v.Number {
+			q.ScheduleUpdate(ctx)
+			return nil
+		}
+
+	case *PRBranch:
+		if first.Branch == v.BranchName {
+			q.ScheduleUpdate(ctx)
+			return nil
+		}
+
+	default:
+		logger.DPanic("unsupported type received", zap.String("type", fmt.Sprintf("%T", v)))
+		return fmt.Errorf("unsupported type of prSpec parameter: %T", v)
+	}
+
+	return ErrNotFound
 }
 
 // Start starts the event-loop in a go-routine.
