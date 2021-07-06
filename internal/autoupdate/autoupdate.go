@@ -700,7 +700,7 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 	logger.Debug("event received")
 
 	if len(branches) == 0 {
-		logger.Warn(
+		logger.Info(
 			"ignorning event, branch field is empty",
 			logFieldEventIgnored,
 		)
