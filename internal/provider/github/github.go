@@ -42,7 +42,6 @@ func New(eventChans []chan<- *Event, opts ...option) *Provider {
 }
 
 func (p *Provider) HTTPHandler(resp http.ResponseWriter, req *http.Request) {
-	p.logging.Debug("received a http request", logfields.Event("github_event_received"))
 
 	deliveryID := github.DeliveryID(req)
 	hookType := github.WebHookType(req)
@@ -54,6 +53,7 @@ func (p *Provider) HTTPHandler(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	logger := p.logging.With(logFields...)
+	logger.Debug("received a http request", logfields.Event("github_event_received"))
 
 	payload, err := github.ValidatePayload(req, p.webhookSecret)
 	if err != nil {
@@ -65,12 +65,6 @@ func (p *Provider) HTTPHandler(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	logger.Debug(
-		"received http request",
-		logfields.Event("github_event_received"),
-		zap.ByteString("http_body", payload),
-	)
 
 	event, err := github.ParseWebHook(github.WebHookType(req), payload)
 	if err != nil {
