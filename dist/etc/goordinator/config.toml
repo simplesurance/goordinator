@@ -18,6 +18,11 @@ log_format = "logfmt"
 # be included in log messages.
 log_time_key = "time_iso8601"
 
+# log_level controls the priority threshold for log messages.
+# All messages with the the specified or a higher priority are logged.
+# Supported values: debug, info, warn, error, panic, fatal
+log_level =  "info"
+
 # The autoupdater section configures a feature to automatically update GitHub
 # pull request branches with changes from their base branch, in a serialized
 # manner.
