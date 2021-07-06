@@ -138,17 +138,6 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 		return false, "", errors.New("got pull request object with empty head")
 	}
 
-	clt.logger.Debug("evaluated if pull request is uptodate with base branch",
-		logfields.Event("github_check_pr_uptodate_with_base"),
-		logfields.Repository(repo),
-		logfields.RepositoryOwner(owner),
-		logfields.PullRequest(pullRequestNumber),
-		logfields.BaseBranch(baseBranch),
-		logfields.Commit(head.GetSHA()),
-		zap.String("git.base_branch_sha", baseBranchHEADSHA),
-		zap.String("git.pull_request_base_sha", PRbaseSHA),
-	)
-
 	return PRbaseSHA == baseBranchHEADSHA, head.GetSHA(), nil
 }
 
@@ -187,20 +176,12 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	)
 
 	if isUptodate {
-		logger.Debug("pull request is already uptodate with base branch, nothing to do",
-			logfields.Event("github_branch_is_uptodate"),
-		)
-
 		return false, nil
 	}
 
 	_, _, err = clt.clt.PullRequests.UpdateBranch(ctx, owner, repo, pullRequestNumber, &github.PullRequestBranchUpdateOptions{ExpectedHeadSHA: &prHEADSHA})
 	if err != nil {
 		if _, ok := err.(*github.AcceptedError); ok {
-			logger.Debug("update of pull request branch with base branch scheduled",
-				logfields.Event("github_branch_update_scheduled"),
-			)
-
 			// It is not clear if the response ensures that
 			// the branch will be updated or if the
 			// scheduled operation can fail.
