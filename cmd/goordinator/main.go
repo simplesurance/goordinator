@@ -220,18 +220,13 @@ func mustParseCfg() *cfg.Config {
 	return config
 }
 
-func initLogFmtLogger(config *cfg.Config) *zap.Logger {
+func initLogFmtLogger(config *cfg.Config, logLevel zapcore.Level) *zap.Logger {
 	cfg := zapEncoderConfig(config)
-	lvl := zapcore.InfoLevel
-
-	if *args.Verbose {
-		lvl = zapcore.DebugLevel
-	}
 
 	logger := zap.New(zapcore.NewCore(
 		zaplogfmt.NewEncoder(cfg),
 		os.Stdout,
-		lvl),
+		logLevel),
 	)
 
 	return logger
@@ -247,16 +242,13 @@ func zapEncoderConfig(config *cfg.Config) zapcore.EncoderConfig {
 	return cfg
 }
 
-func mustInitZapFormatLogger(config *cfg.Config) *zap.Logger {
+func mustInitZapFormatLogger(config *cfg.Config, logLevel zapcore.Level) *zap.Logger {
 	cfg := zap.NewProductionConfig()
 	cfg.Sampling = nil
 	cfg.EncoderConfig = zapEncoderConfig(config)
 	cfg.OutputPaths = []string{"stdout"}
 	cfg.Encoding = config.LogFormat
-
-	if *args.Verbose {
-		cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-	}
+	cfg.Level = zap.NewAtomicLevelAt(logLevel)
 
 	logger, err := cfg.Build()
 	exitOnErr("could not initialize logger", err)
@@ -265,11 +257,21 @@ func mustInitZapFormatLogger(config *cfg.Config) *zap.Logger {
 }
 
 func mustInitLogger(config *cfg.Config) {
+	var logLevel zapcore.Level
+	if *args.Verbose {
+		logLevel = zapcore.DebugLevel
+	} else {
+		if err := (&logLevel).Set(config.LogLevel); err != nil {
+			fmt.Fprintf(os.Stderr, "can not set log level to %q: %s \n", config.LogFormat, err)
+			os.Exit(2)
+		}
+	}
+
 	switch config.LogFormat {
 	case "logfmt":
-		logger = initLogFmtLogger(config)
+		logger = initLogFmtLogger(config, logLevel)
 	case "console", "json":
-		logger = mustInitZapFormatLogger(config)
+		logger = mustInitZapFormatLogger(config, logLevel)
 	default:
 		fmt.Fprintf(os.Stderr, "unsupported log-format argument: %q\n", config.LogFormat)
 		os.Exit(2)
@@ -379,6 +381,7 @@ func main() {
 		zap.String("github_api_token", hide(config.GithubAPIToken)),
 		zap.String("log_format", config.LogFormat),
 		zap.String("log_time_key", config.LogTimeKey),
+		zap.String("log_level", config.LogLevel),
 		zap.Bool("autoupdater.trigger_on_auto_merge", config.Autoupdater.TriggerOnAutoMerge),
 		zap.Strings("autoupdater.labels", config.Autoupdater.Labels),
 		zap.Any("autoupdater.repositories", config.Autoupdater.Repositories),
