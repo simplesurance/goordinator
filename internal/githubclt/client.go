@@ -279,7 +279,6 @@ func (it *PRIter) Next() (*github.PullRequest, error) {
 		return nil, it.clt.wrapRetryableErrors(err)
 	}
 
-	fmt.Printf("pagination: next: %d, last: %d\n", resp.NextPage, resp.LastPage)
 	if resp.NextPage == 0 || resp.PrevPage+1 == resp.LastPage || len(prs) == 0 {
 		it.finished = true
 	} else {
