@@ -279,6 +279,12 @@ func mustInitLogger(config *cfg.Config) {
 
 	logger = logger.Named("main")
 	zap.ReplaceGlobals(logger)
+
+	goodbye.Register(func(context.Context, os.Signal) {
+		if err := logger.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "flushing logs failed: %s\n", err)
+		}
+	})
 }
 
 func hide(in string) string {
