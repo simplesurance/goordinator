@@ -246,6 +246,10 @@ type PRIter struct {
 	owner string
 	repo  string
 
+	filterState   string
+	sortOrder     string
+	sortDirection string
+
 	unseen []*github.PullRequest
 
 	nextPage int
@@ -268,8 +272,8 @@ func (it *PRIter) Next() (*github.PullRequest, error) {
 
 	prs, resp, err := it.clt.clt.PullRequests.List(it.ctx, it.owner, it.repo, &github.PullRequestListOptions{
 		State:     "open",
-		Sort:      "created",
-		Direction: "asc",
+		Sort:      it.filterState,
+		Direction: it.sortOrder,
 		ListOptions: github.ListOptions{
 			Page:    it.nextPage,
 			PerPage: 100,
@@ -295,11 +299,14 @@ func (it *PRIter) Next() (*github.PullRequest, error) {
 // all pull requests should be returned.
 func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) PRIterator { // interface is returned to make the method mockable
 	return &PRIter{
-		clt:      clt,
-		ctx:      ctx,
-		owner:    owner,
-		repo:     repo,
-		nextPage: 1,
+		clt:           clt,
+		ctx:           ctx,
+		owner:         owner,
+		repo:          repo,
+		sortOrder:     sort,
+		sortDirection: sortDirection,
+		filterState:   state,
+		nextPage:      1,
 	}
 }
 
