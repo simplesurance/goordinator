@@ -713,7 +713,9 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 		for _, branch := range branches {
 			pr, err := a.TriggerUpdateIfFirstAllQueues(ctx, owner, repo, &PRBranch{BranchName: branch})
 			if err != nil {
-				if !errors.Is(err, ErrNotFound) {
+				if errors.Is(err, ErrNotFound) {
+					logger.Debug("processed status event for branch that is not queued for updates")
+				} else {
 					logger.Error("triggering  update failed", zap.Error(err))
 				}
 
@@ -731,7 +733,7 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 		a.ResumeIfStatusIsSuccess(ctx, owner, repo, branches)
 
 	default:
-		logger.Debug("ignoring event with unknown or not relevant status",
+		logger.Debug("ignoring event with irrelevant or unsupported status",
 			logFieldEventIgnored,
 		)
 	}
