@@ -42,7 +42,6 @@ func New(eventChans []chan<- *Event, opts ...option) *Provider {
 }
 
 func (p *Provider) HTTPHandler(resp http.ResponseWriter, req *http.Request) {
-
 	deliveryID := github.DeliveryID(req)
 	hookType := github.WebHookType(req)
 

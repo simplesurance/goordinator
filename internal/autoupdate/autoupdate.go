@@ -729,8 +729,8 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 			)
 		}
 
-	case "success":
-		a.ResumeIfStatusIsSuccess(ctx, owner, repo, branches)
+	case "pending", "success":
+		a.ResumeIfStatusPositive(ctx, owner, repo, branches)
 
 	default:
 		logger.Debug("ignoring event with irrelevant or unsupported status",
@@ -850,10 +850,10 @@ func (a *Autoupdater) SuspendUpdates(
 	return updatedPrs, errors
 }
 
-// ResumeIfStatusIsSuccess resumes updating for queued pull requests of the given branch
+// ResumeIfStatusPositive resumes updating for queued pull requests of the given branch
 // names, if updates for it are currently suspended and the GitHub API returns
-// a combined successful check status.
-func (a *Autoupdater) ResumeIfStatusIsSuccess(ctx context.Context, owner, repo string, branchNames []string) {
+// a combined positive check status (success or pending).
+func (a *Autoupdater) ResumeIfStatusPositive(ctx context.Context, owner, repo string, branchNames []string) {
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
 
@@ -864,7 +864,7 @@ func (a *Autoupdater) ResumeIfStatusIsSuccess(ctx context.Context, owner, repo s
 
 		prs := q.SuspendedPRsbyBranch(branchNames)
 		for _, pr := range prs {
-			q.ScheduleResumePRIfStatusSuccessful(ctx, pr)
+			q.ScheduleResumePRIfStatusPositive(ctx, pr)
 		}
 	}
 }

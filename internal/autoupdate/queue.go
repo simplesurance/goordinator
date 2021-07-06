@@ -699,16 +699,17 @@ func (q *queue) SuspendedPRsbyBranch(branchNames []string) []*PullRequest {
 	return result
 }
 
-// resumeIfPRStatusIsSuccessful queries the combined check status for pr, if it
-// is success, updates for the PR are resumed.
-// Otherwise nothing is done.
-func (q *queue) resumeIfPRStatusIsSuccessful(ctx context.Context, pr *PullRequest) (bool, error) {
+func (q *queue) resumeIfPRStatusPositive(ctx context.Context, pr *PullRequest) (bool, error) {
+	if _, exist := q.suspended[pr.Number]; !exist {
+		return false, ErrNotFound
+	}
+
 	status, _, err := q.prCombinedStatus(ctx, pr)
 	if err != nil {
 		return false, fmt.Errorf("retrieving combined check status failed: %w", err)
 	}
 
-	if status == "success" {
+	if status == "success" || status == "pending" {
 		if err := q.Resume(pr.Number); err != nil {
 			return false, fmt.Errorf("resuming updates failed: %w", err)
 		}
@@ -719,8 +720,9 @@ func (q *queue) resumeIfPRStatusIsSuccessful(ctx context.Context, pr *PullReques
 	return false, nil
 }
 
-// ScheduleResumePRIfStatusSuccessful schedules execution of the resumeIfPRStatusIsSuccessful operation.
-func (q *queue) ScheduleResumePRIfStatusSuccessful(ctx context.Context, pr *PullRequest) {
+// ScheduleResumePRIfStatusPositive schedules resuming autoupdates for a pull
+// request when it's combined check status is success or pending.
+func (q *queue) ScheduleResumePRIfStatusPositive(ctx context.Context, pr *PullRequest) {
 	q.actionPool.Queue(func() {
 		ctx, cancelFunc := context.WithCancel(ctx)
 		defer cancelFunc()
@@ -730,10 +732,10 @@ func (q *queue) ScheduleResumePRIfStatusSuccessful(ctx context.Context, pr *Pull
 
 		q.setExecuting(&runningTask{pr: pr.Number, cancelFunc: cancelFunc})
 
-		resumed, err := q.resumeIfPRStatusIsSuccessful(ctx, pr)
-		if err != nil && errors.Is(err, ErrNotFound) {
+		resumed, err := q.resumeIfPRStatusPositive(ctx, pr)
+		if err != nil && !errors.Is(err, ErrNotFound) {
 			q.logger.With(pr.LogFields...).Info(
-				"resuming updates if pr status is successful failed",
+				"resuming updates after retrieving positive pr status failed",
 				zap.Error(err),
 			)
 		}
@@ -743,9 +745,9 @@ func (q *queue) ScheduleResumePRIfStatusSuccessful(ctx context.Context, pr *Pull
 		}
 
 		q.logger.With(pr.LogFields...).Info(
-			"updates resumed, combined check status is successful",
+			"updates resumed, combined check status is positive",
 			logEventUpdatesResumed,
-			logFieldReason("status_check_successful"),
+			logFieldReason("status_check_positive"),
 		)
 	})
 
