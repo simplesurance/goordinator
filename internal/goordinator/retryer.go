@@ -16,17 +16,28 @@ import (
 // DefTimeout is used as timeout for runs when the passed context has no deadline set.
 const DefTimeout = 24 * time.Hour
 
+const (
+	defBackoffInitialInterval     = 5 * time.Second
+	defBackoffRandomizationFactor = 0.5
+)
+
 // Retryer executes a function repeatedly until it was successful or it's
 // context was cancelled.
 type Retryer struct {
-	logger       *zap.Logger
-	shutdownChan chan struct{}
+	logger                     *zap.Logger
+	shutdownChan               chan struct{}
+	defTimeout                 time.Duration
+	backoffInitialInterval     time.Duration
+	backoffRandomizationFactor float64
 }
 
 func NewRetryer() *Retryer {
 	return &Retryer{
-		logger:       zap.L().Named("retryer"),
-		shutdownChan: make(chan struct{}),
+		logger:                     zap.L().Named("retryer"),
+		shutdownChan:               make(chan struct{}),
+		defTimeout:                 DefTimeout,
+		backoffInitialInterval:     defBackoffInitialInterval,
+		backoffRandomizationFactor: defBackoffRandomizationFactor,
 	}
 }
 
@@ -40,8 +51,8 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 	if _, set := ctx.Deadline(); !set {
 		var cancelFunc context.CancelFunc
 
-		r.logger.Debug("context has no deadline set, using default timeout", zap.Duration("timeout", DefTimeout))
-		ctx, cancelFunc = context.WithTimeout(ctx, DefTimeout)
+		r.logger.Debug("context has no deadline set, using default timeout", zap.Duration("timeout", r.defTimeout))
+		ctx, cancelFunc = context.WithTimeout(ctx, r.defTimeout)
 		defer cancelFunc()
 	}
 
@@ -49,7 +60,8 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 	defer retryTimer.Stop()
 
 	bo := backoff.NewExponentialBackOff()
-	bo.InitialInterval = 5 * time.Second
+	bo.InitialInterval = r.backoffInitialInterval
+	bo.RandomizationFactor = r.backoffRandomizationFactor
 
 	logger := r.logger.With(logF...)
 
