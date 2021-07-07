@@ -13,8 +13,11 @@ import (
 	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
-// Retryer executes a function repeatedly until it was successful or cancel
-// condition happened.
+// DefTimeout is used as timeout for runs when the passed context has no deadline set.
+const DefTimeout = 24 * time.Hour
+
+// Retryer executes a function repeatedly until it was successful or it's
+// context was cancelled.
 type Retryer struct {
 	logger       *zap.Logger
 	shutdownChan chan struct{}
@@ -30,8 +33,17 @@ func NewRetryer() *Retryer {
 // Run executes fn until it was successful, it returned an error that
 // does not wrap goorderr.RetryableError or the execution was aborted via the
 // context.
+// If the context has no deadline set, it will be set to DefTimeout.
 func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF []zap.Field) error {
 	var tryCnt uint
+
+	if _, set := ctx.Deadline(); !set {
+		var cancelFunc context.CancelFunc
+
+		r.logger.Debug("context has no deadline set, using default timeout", zap.Duration("timeout", DefTimeout))
+		ctx, cancelFunc = context.WithTimeout(ctx, DefTimeout)
+		defer cancelFunc()
+	}
 
 	retryTimer := time.NewTimer(0)
 	defer retryTimer.Stop()
