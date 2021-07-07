@@ -794,6 +794,7 @@ func (a *Autoupdater) Dequeue(ctx context.Context, baseBranch *BaseBranch, prNum
 	}
 
 	if q.IsEmpty() {
+		q.Stop()
 		delete(a.queues, baseBranch.BranchID)
 		logger := a.logger.With(pr.LogFields...).With(baseBranch.Logfields...)
 		logger.Debug("empty queue for base branch removed")
