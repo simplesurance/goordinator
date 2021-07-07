@@ -238,6 +238,7 @@ func zapEncoderConfig(config *cfg.Config) zapcore.EncoderConfig {
 	cfg.LevelKey = "loglevel"
 	cfg.TimeKey = config.LogTimeKey
 	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	cfg.EncodeDuration = zapcore.StringDurationEncoder
 
 	return cfg
 }
