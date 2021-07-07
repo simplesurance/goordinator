@@ -81,13 +81,17 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 						zap.Error(err),
 					)
 
-					if retryError.After.IsZero() {
-						retryIn = bo.NextBackOff()
+					if untilAfter := time.Until(retryError.After); untilAfter > 0 {
+						retryIn = untilAfter
 					} else {
-						retryIn = time.Until(retryError.After)
+						retryIn = bo.NextBackOff()
 					}
 
-					retryTimer.Reset(retryIn)
+					timerWasActive := retryTimer.Reset(retryIn)
+					if timerWasActive {
+						logger.DPanic("timer was active when reset was called")
+					}
+
 					logger.Info(
 						"action failed, retry scheduled",
 						logfields.Event("action_retry_scheduled"),
