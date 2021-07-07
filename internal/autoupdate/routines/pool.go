@@ -121,7 +121,7 @@ func (p *Pool) Queue(workFn WorkFn) {
 // The method can be called safely multiple times.
 // After Wait() was called, no further work must be queued.
 func (p *Pool) Wait() {
-	p.terminateOnce.Do(p.Wait)
+	p.terminateOnce.Do(p.wait)
 }
 
 func (p *Pool) wait() {
