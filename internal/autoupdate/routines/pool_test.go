@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestScheduleAndWait(t *testing.T) {
@@ -40,4 +41,8 @@ func TestWaitCanBeCalledMultipleTimes(t *testing.T) {
 	pool := NewPool(10)
 	pool.Wait()
 	assert.NotPanics(t, pool.Wait)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
