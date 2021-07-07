@@ -634,6 +634,9 @@ func (q *queue) prCombinedStatus(ctx context.Context, pr *PullRequest) (string, 
 
 	loggingFields := pr.LogFields
 
+	ctx, cancelFunc := context.WithTimeout(ctx, retryTimeout)
+	defer cancelFunc()
+
 	err := q.retryer.Run(ctx, func(ctx context.Context) error {
 		var err error
 
