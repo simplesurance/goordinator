@@ -16,7 +16,8 @@ type Pool struct {
 
 	schedulerNotifyChan chan struct{}
 
-	terminateWg sync.WaitGroup
+	terminateWg   sync.WaitGroup
+	terminateOnce sync.Once
 }
 
 // WorkFn is a function that is executed by the pool workers.
@@ -117,8 +118,13 @@ func (p *Pool) Queue(workFn WorkFn) {
 
 // Wait waits until the workqueue is empty and then terminates the worker
 // goroutines.
+// The method can be called safely multiple times.
 // After Wait() was called, no further work must be queued.
 func (p *Pool) Wait() {
+	p.terminateOnce.Do(p.Wait)
+}
+
+func (p *Pool) wait() {
 	p.wqMutex.Lock()
 	p.terminate = true
 	p.wqMutex.Unlock()

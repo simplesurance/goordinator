@@ -35,3 +35,9 @@ func TestQueuePanicsAfterWait(t *testing.T) {
 		pool.Queue(func() {})
 	})
 }
+
+func TestWaitCanBeCalledMultipleTimes(t *testing.T) {
+	pool := NewPool(10)
+	pool.Wait()
+	assert.NotPanics(t, pool.Wait)
+}
