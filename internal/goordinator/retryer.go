@@ -73,10 +73,6 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 			if err != nil {
 				var retryError *goorderr.RetryableError
 
-				if errors.Is(err, context.Canceled) {
-					return err
-				}
-
 				if errors.As(err, &retryError) {
 					var retryIn time.Duration
 
