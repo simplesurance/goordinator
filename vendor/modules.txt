@@ -38,12 +38,13 @@ github.com/sykesm/zap-logfmt
 # github.com/thecodeteam/goodbye v0.0.0-20170927022442-a83968bda2d3
 ## explicit
 github.com/thecodeteam/goodbye
-# go.uber.org/atomic v1.6.0
+# go.uber.org/atomic v1.8.0
 ## explicit
 go.uber.org/atomic
-# go.uber.org/multierr v1.5.0
+# go.uber.org/multierr v1.7.0
+## explicit
 go.uber.org/multierr
-# go.uber.org/zap v1.16.0
+# go.uber.org/zap v1.18.1
 ## explicit
 go.uber.org/zap
 go.uber.org/zap/buffer
