@@ -110,7 +110,7 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 				stats.Failures++
 				logger.Warn(
 					"adding pr to queue failed",
-					logFieldEventIgnored,
+					logEventEventIgnored,
 					zap.Error(err),
 				)
 				break
@@ -137,7 +137,7 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 				stats.Failures++
 				logger.Warn(
 					"dequeing pull request failed",
-					logFieldEventIgnored,
+					logEventEventIgnored,
 					zap.Error(err),
 				)
 				break
