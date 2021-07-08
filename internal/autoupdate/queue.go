@@ -339,7 +339,7 @@ func (q *queue) FirstActive() *PullRequest {
 func (q *queue) ScheduleUpdate(ctx context.Context) {
 	first := q.FirstActive()
 	if first == nil {
-		q.logger.Debug("ScheduleUpdateFirstPR was called but queue is empty")
+		q.logger.Debug("ScheduleUpdateFirstPR was called but active queue is empty")
 		return
 	}
 
