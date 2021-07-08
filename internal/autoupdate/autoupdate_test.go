@@ -964,3 +964,44 @@ func TestInitialSync(t *testing.T) {
 	assert.NotNil(t, q.active.Get(4), "pr4 was not added to the queue")
 	q.lock.Unlock()
 }
+
+func TestFirstPRInQueueIsUpdatedPeriodically(t *testing.T) {
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
+
+	evChan := make(chan *github_prov.Event, 1)
+	defer close(evChan)
+
+	mockctrl := gomock.NewController(t)
+	ghClient := mocks.NewMockGithubClient(mockctrl)
+
+	prNumber := 1
+	triggerLabel := "queue-add"
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(2)
+
+	retryer := goordinator.NewRetryer()
+	autoupdater := NewAutoupdater(
+		ghClient,
+		evChan,
+		retryer,
+		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
+		true,
+		[]string{triggerLabel},
+	)
+
+	autoupdater.periodicTriggerIntv = 2 * time.Second
+	autoupdater.Start()
+	t.Cleanup(autoupdater.Stop)
+
+	pr, err := NewPullRequest(1, "pr_branch")
+	require.NoError(t, err)
+
+	baseBranch, err := NewBaseBranch(repoOwner, repo, "main")
+	require.NoError(t, err)
+
+	err = autoupdater.Enqueue(context.Background(), baseBranch, pr)
+	require.NoError(t, err)
+
+	time.Sleep(autoupdater.periodicTriggerIntv + time.Second)
+
+	// the mocked GithubUpdateCall asserts that it was called 1x from the period update
+}
