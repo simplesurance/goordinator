@@ -4,7 +4,6 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
-	"path"
 
 	_ "embed" // used to embed html templates and static docs
 
@@ -47,7 +46,7 @@ func NewHTTPService(autoupdater *Autoupdater) *HTTPService {
 func (h *HTTPService) RegisterHandlers(mux *http.ServeMux, endpoint string) {
 	mux.HandleFunc(endpoint, h.HandlerListFunc)
 
-	staticPath := path.Join(endpoint, "static")
+	staticPath := endpoint + "static" + "/"
 
 	mux.Handle(
 		staticPath,
