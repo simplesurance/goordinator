@@ -67,7 +67,6 @@ autoupdater.http_endpoint = "/autoupdater"
  # information from the event.
  # The following template strings are supported:
  # - `{{ .Event.PullRequestNr }}`
- # - `{{ .Event.PullRequestName }}`
  # - `{{ .Event.BaseBranch }}`
  # - `{{ .Event.Branch }}`
  # - `{{ .Event.CommitID }}`
