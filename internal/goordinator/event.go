@@ -81,18 +81,12 @@ func extractEventInfo(ghEvent interface{}) *Event {
 	if v, ok := ghEvent.(pushEventRepoGetter); ok {
 		if repo := v.GetRepo(); repo != nil {
 			result.Repository = repo.GetName()
-
-			if owner := repo.GetOwner(); owner != nil {
-				result.RepositoryOwner = owner.GetLogin()
-			}
+			result.RepositoryOwner = repo.GetOwner().GetLogin()
 		}
 	} else if v, ok := ghEvent.(repoGetter); ok {
 		if repo := v.GetRepo(); repo != nil {
 			result.Repository = repo.GetName()
-
-			if owner := repo.GetOwner(); owner != nil {
-				result.RepositoryOwner = owner.GetLogin()
-			}
+			result.RepositoryOwner = repo.GetOwner().GetLogin()
 		}
 	}
 
@@ -114,9 +108,7 @@ func extractEventInfo(ghEvent interface{}) *Event {
 				result.Branch = head.GetRef()
 			}
 
-			if base := pr.GetBase(); base != nil {
-				result.BaseBranch = base.GetRef()
-			}
+			result.BaseBranch = pr.GetBase().GetRef()
 		}
 	}
 
