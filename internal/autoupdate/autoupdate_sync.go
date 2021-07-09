@@ -175,7 +175,7 @@ func (a *Autoupdater) enqueuePR(ctx context.Context, repoOwner, repo string, ghP
 		return fmt.Errorf("incomplete base branch information: %w", err)
 	}
 
-	pr, err := NewPullRequest(ghPr.GetNumber(), ghPr.GetHead().GetRef())
+	pr, err := NewPullRequest(ghPr.GetNumber(), ghPr.GetHead().GetRef(), ghPr.GetUser().GetLogin(), ghPr.GetTitle(), ghPr.GetLinks().GetHTML().GetHRef())
 	if err != nil {
 		return fmt.Errorf("incomplete pr information: %w", err)
 	}

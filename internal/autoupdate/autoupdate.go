@@ -344,7 +344,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			return
 		}
 
-		pr, err := NewPullRequest(prNumber, branch)
+		pr, err := NewPullRequestFromEvent(ev.GetPullRequest())
 		if err != nil {
 			logger.Warn(
 				"ignoring event, incomplete pull request information",
@@ -409,7 +409,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			return
 		}
 
-		pr, err := NewPullRequest(prNumber, branch)
+		pr, err := NewPullRequestFromEvent(ev.GetPullRequest())
 		if err != nil {
 			logError(
 				logger,
@@ -460,7 +460,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			return
 		}
 
-		pr, err := NewPullRequest(prNumber, branch)
+		pr, err := NewPullRequestFromEvent(ev.GetPullRequest())
 		if err != nil {
 			logger.Warn(
 				"ignoring event, incomplete pull request information",
@@ -523,7 +523,7 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 			return
 		}
 
-		pr, err := NewPullRequest(prNumber, branch)
+		pr, err := NewPullRequestFromEvent(ev.GetPullRequest())
 		if err != nil {
 			logger.Warn(
 				"ignoring event, incomplete pull request information",
@@ -1041,4 +1041,8 @@ func (a *Autoupdater) Stop() {
 	}
 
 	a.logger.Debug("autoupdater terminated")
+}
+
+func (a *Autoupdater) HTTPService() *HTTPService {
+	return NewHTTPService(a)
 }

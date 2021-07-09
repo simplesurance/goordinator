@@ -217,6 +217,8 @@ func mustParseCfg() *cfg.Config {
 		exitOnErr(fmt.Sprintf("could not load configuration file: %s", *args.ConfigFile), err)
 	}
 
+	config.Autoupdater.Endpoint = normalizeHTTPEndpoint(config.Autoupdater.Endpoint)
+
 	return config
 }
 
@@ -296,6 +298,14 @@ func hide(in string) string {
 	return "**hidden**"
 }
 
+func normalizeHTTPEndpoint(endpoint string) string {
+	if len(endpoint) != 0 && endpoint[len(endpoint)-1] != '/' {
+		return endpoint + "/"
+	}
+
+	return endpoint
+}
+
 func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Client, mux *http.ServeMux) (*autoupdate.Autoupdater, chan<- *github.Event) {
 	if !config.Autoupdater.TriggerOnAutoMerge && len(config.Autoupdater.Labels) == 0 {
 		logger.Info(
@@ -343,8 +353,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 	autoupdater.Start()
 
 	if config.Autoupdater.Endpoint != "" {
-		mux.HandleFunc(config.Autoupdater.Endpoint, autoupdater.HTTPHandlerList)
-
+		autoupdater.HTTPService().RegisterHandlers(mux, config.Autoupdater.Endpoint)
 		logger.Info(
 			"registered github pull request autoupdater http endpoint",
 			logfields.Event("autoupdater_http_handler_registered"),

@@ -8,21 +8,40 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/google/go-github/v35/github"
+
 	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
 type PullRequest struct {
 	Number    int
 	Branch    string
+	Author    string
+	Title     string
+	Link      string
 	LogFields []zap.Field
 
-	enqueuedSince time.Time
+	EnqueuedSince time.Time
 
 	stateUnchangedSince time.Time
 	lock                sync.Mutex // must be held when accessing stateUnchangedSince
 }
 
-func NewPullRequest(nr int, branch string) (*PullRequest, error) {
+func NewPullRequestFromEvent(ev *github.PullRequest) (*PullRequest, error) {
+	if ev == nil {
+		return nil, errors.New("github pull request event is nil")
+	}
+
+	return NewPullRequest(
+		ev.GetNumber(),
+		ev.GetHead().GetRef(),
+		ev.GetUser().GetLogin(),
+		ev.GetTitle(),
+		ev.GetLinks().GetHTML().GetHRef(),
+	)
+}
+
+func NewPullRequest(nr int, branch, author, title, link string) (*PullRequest, error) {
 	if nr <= 0 {
 		return nil, fmt.Errorf("number is %d, must be >0", nr)
 	}
@@ -34,6 +53,9 @@ func NewPullRequest(nr int, branch string) (*PullRequest, error) {
 	return &PullRequest{
 		Number: nr,
 		Branch: branch,
+		Author: author,
+		Title:  title,
+		Link:   link,
 		LogFields: []zap.Field{
 			logfields.PullRequest(nr),
 			logfields.Branch(branch),

@@ -168,7 +168,7 @@ func TestEnqueueDequeue(t *testing.T) {
 	evChan := make(chan *github_prov.Event, 10)
 	defer close(evChan)
 
-	pr, err := NewPullRequest(1, "pr_branch")
+	pr, err := NewPullRequest(1, "pr_branch", "", "", "")
 	require.NoError(t, err)
 
 	mockctrl := gomock.NewController(t)
@@ -212,7 +212,7 @@ func TestSuspendAndResume(t *testing.T) {
 	evChan := make(chan *github_prov.Event, 10)
 	defer close(evChan)
 
-	pr, err := NewPullRequest(1, "pr_branch")
+	pr, err := NewPullRequest(1, "pr_branch", "", "", "")
 	require.NoError(t, err)
 
 	mockctrl := gomock.NewController(t)
@@ -267,7 +267,7 @@ func TestPushToPRBranchResumesPR(t *testing.T) {
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
 
-	pr, err := NewPullRequest(1, "pr_branch")
+	pr, err := NewPullRequest(1, "pr_branch", "", "", "")
 	require.NoError(t, err)
 
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
@@ -318,7 +318,7 @@ func TestPushToBaseBranchTriggersUpdate(t *testing.T) {
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
 
-	pr, err := NewPullRequest(1, "pr_branch")
+	pr, err := NewPullRequest(1, "pr_branch", "", "", "")
 	require.NoError(t, err)
 
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).Times(2)
@@ -550,13 +550,13 @@ func TestSuccessStatusEventResumesPRs(t *testing.T) {
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
 
-	pr1, err := NewPullRequest(1, "pr_branch1")
+	pr1, err := NewPullRequest(1, "pr_branch1", "", "", "")
 	require.NoError(t, err)
 
-	pr2, err := NewPullRequest(2, "pr_branch2")
+	pr2, err := NewPullRequest(2, "pr_branch2", "", "", "")
 	require.NoError(t, err)
 
-	pr3, err := NewPullRequest(3, "pr_branch3")
+	pr3, err := NewPullRequest(3, "pr_branch3", "", "", "")
 	require.NoError(t, err)
 
 	ghClient.
@@ -634,13 +634,13 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
 
-	pr1, err := NewPullRequest(1, "pr_branch1")
+	pr1, err := NewPullRequest(1, "pr_branch1", "", "", "")
 	require.NoError(t, err)
 
-	pr2, err := NewPullRequest(2, "pr_branch2")
+	pr2, err := NewPullRequest(2, "pr_branch2", "", "", "")
 	require.NoError(t, err)
 
-	pr3, err := NewPullRequest(3, "pr_branch3")
+	pr3, err := NewPullRequest(3, "pr_branch3", "", "", "")
 	require.NoError(t, err)
 
 	ghClient.
@@ -745,7 +745,7 @@ func TestPRIsSuspendedWhenStatusIsStuck(t *testing.T) {
 	autoupdater.Start()
 	t.Cleanup(autoupdater.Stop)
 
-	pr, err := NewPullRequest(1, "pr_branch")
+	pr, err := NewPullRequest(1, "pr_branch", "", "", "")
 	require.NoError(t, err)
 
 	baseBranch, err := NewBaseBranch(repoOwner, repo, "main")
@@ -992,7 +992,7 @@ func TestFirstPRInQueueIsUpdatedPeriodically(t *testing.T) {
 	autoupdater.Start()
 	t.Cleanup(autoupdater.Stop)
 
-	pr, err := NewPullRequest(1, "pr_branch")
+	pr, err := NewPullRequest(1, "pr_branch", "", "", "")
 	require.NoError(t, err)
 
 	baseBranch, err := NewBaseBranch(repoOwner, repo, "main")

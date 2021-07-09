@@ -40,3 +40,7 @@ max_line_length = 0
 [*.toml]
 indent_size = 2
 indent_style = space
+
+[{*.html.tmpl,*.css}]
+indent_size = 2
+indent_style = space

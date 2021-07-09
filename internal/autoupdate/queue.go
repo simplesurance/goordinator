@@ -141,10 +141,31 @@ func (q *queue) IsEmpty() bool {
 	return q.active.Len() == 0 && len(q.suspended) == 0
 }
 
+func (q *queue) _activePullRequests() []*PullRequest {
+	return q.active.AsSlice()
+}
+
+func (q *queue) _suspendedPullRequests() []*PullRequest {
+	result := make([]*PullRequest, 0, len(q.suspended))
+
+	for _, v := range q.suspended {
+		result = append(result, v)
+	}
+
+	return result
+}
+
+func (q *queue) asSlices() (activePRs, suspendedPRs []*PullRequest) {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
+	return q._activePullRequests(), q._suspendedPullRequests()
+}
+
 func (q *queue) _enqueueActive(pr *PullRequest) error {
 	logger := q.logger.With(pr.LogFields...)
 
-	pr.enqueuedSince = time.Now()
+	pr.EnqueuedSince = time.Now()
 	newFirstElemen, added := q.active.EnqueueIfNotExist(pr.Number, pr)
 	if !added {
 		return fmt.Errorf("pull request already exist in active queue: %w", ErrAlreadyExists)
