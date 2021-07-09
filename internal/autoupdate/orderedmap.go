@@ -92,3 +92,15 @@ func (m *orderedMap) Foreach(fn func(*PullRequest) bool) {
 		}
 	}
 }
+
+// AsSlice returns a new slice containing the elements of the orderedMap in
+// order.
+func (m *orderedMap) AsSlice() []*PullRequest {
+	result := make([]*PullRequest, 0, m.order.Len())
+
+	for e := m.order.Front(); e != nil; e = e.Next() {
+		result = append(result, e.Value.(*PullRequest))
+	}
+
+	return result
+}
