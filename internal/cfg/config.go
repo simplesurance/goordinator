@@ -15,6 +15,7 @@ type Config struct {
 	HTTPGithubWebhookEndpoint string             `toml:"github_webhook_endpoint"`
 	GithubWebHookSecret       string             `toml:"github_webhook_secret"`
 	GithubAPIToken            string             `toml:"github_api_token"`
+	PrometheusMetricsEndpoint string             `toml:"prometheus_metrics_endpoint"`
 	LogFormat                 string             `toml:"log_format"`
 	LogTimeKey                string             `toml:"log_time_key"`
 	LogLevel                  string             `toml:"log_level"`
