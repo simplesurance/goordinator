@@ -412,6 +412,11 @@ func main() {
 		logger.Info(fmt.Sprintf("terminating, received signal %s", sig.String()))
 	})
 
+	if config.HTTPListenAddr == "" && config.HTTPSListenAddr == "" {
+		fmt.Fprintf(os.Stderr, "https_server_listen_addr or http_server_listen_addr must be defined in the config file, both are unset")
+		os.Exit(1)
+	}
+
 	var chans []chan<- *github.Event
 
 	mux := http.NewServeMux()
@@ -462,10 +467,6 @@ func main() {
 			logfields.Event("prometheus_http_handler_registered"),
 			zap.String("endpoint", config.PrometheusMetricsEndpoint),
 		)
-	}
-
-	if config.HTTPListenAddr == "" && config.HTTPSListenAddr == "" {
-		logger.Warn("https_server_listen_addr and http_server_listen_addr configuration parameters are empty, no http server is started")
 	}
 
 	if config.HTTPListenAddr != "" {
