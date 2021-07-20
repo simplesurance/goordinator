@@ -8,7 +8,7 @@ require (
 	github.com/google/go-github/v35 v35.0.0
 	github.com/itchyny/gojq v0.12.2
 	github.com/pelletier/go-toml v1.9.0
-	github.com/pkg/errors v0.9.1 // indirect
+	github.com/prometheus/client_golang v1.11.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	github.com/sykesm/zap-logfmt v0.0.4

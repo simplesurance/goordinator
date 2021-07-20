@@ -7,6 +7,9 @@ https_ssl_key_file = ""
 github_webhook_endpoint = "/listener/github"
 github_webhook_secret = ""
 
+# expose prometheus metrics at the specified endpoint
+# prometheus_metrics_endpoint = "/metrics"
+
 # GitHub API token, required when github actions are defined or autoupdate is
 # enabled.
 github_api_token = "my-secret-token"

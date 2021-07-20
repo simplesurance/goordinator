@@ -15,6 +15,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/simplesurance/goordinator/internal/autoupdate"
 	"github.com/simplesurance/goordinator/internal/cfg"
 	"github.com/simplesurance/goordinator/internal/githubclt"
@@ -398,6 +400,7 @@ func main() {
 		zap.String("log_format", config.LogFormat),
 		zap.String("log_time_key", config.LogTimeKey),
 		zap.String("log_level", config.LogLevel),
+		zap.String("prometheus_metrics_endpoint", config.PrometheusMetricsEndpoint),
 		zap.Bool("autoupdater.trigger_on_auto_merge", config.Autoupdater.TriggerOnAutoMerge),
 		zap.Strings("autoupdater.labels", config.Autoupdater.Labels),
 		zap.Any("autoupdater.repositories", config.Autoupdater.Repositories),
@@ -451,6 +454,15 @@ func main() {
 		logfields.Event("github_http_handler_registered"),
 		zap.String("endpoint", config.HTTPGithubWebhookEndpoint),
 	)
+
+	if config.PrometheusMetricsEndpoint != "" {
+		mux.Handle(config.PrometheusMetricsEndpoint, promhttp.Handler())
+		logger.Debug(
+			"registered prometheus metrics endpoint handler",
+			logfields.Event("prometheus_http_handler_registered"),
+			zap.String("endpoint", config.PrometheusMetricsEndpoint),
+		)
+	}
 
 	if config.HTTPListenAddr == "" && config.HTTPSListenAddr == "" {
 		logger.Warn("https_server_listen_addr and http_server_listen_addr configuration parameters are empty, no http server is started")

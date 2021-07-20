@@ -240,7 +240,10 @@ func (a *Autoupdater) eventLoop() {
 //
 // Other events are ignored and a debug message is logged for those.
 func (a *Autoupdater) processEvent(ctx context.Context, event *github_prov.Event) {
-	defer a.processedEventCnt.Inc()
+	defer func() {
+		a.processedEventCnt.Inc()
+		metrics.ProcessedEventsInc()
+	}()
 
 	logger := a.logger.With(event.LogFields...)
 
@@ -766,7 +769,13 @@ func (a *Autoupdater) Enqueue(ctx context.Context, baseBranch *BaseBranch, pr *P
 		)
 	}
 
-	return q.Enqueue(pr)
+	if err := q.Enqueue(pr); err != nil {
+		return err
+	}
+
+	metrics.EnqueueOpsInc(&baseBranch.BranchID)
+
+	return nil
 }
 
 // Dequeue removes the pull request with number prNumber from the autoupdate queue of baseBranch.
@@ -791,10 +800,14 @@ func (a *Autoupdater) Dequeue(ctx context.Context, baseBranch *BaseBranch, prNum
 		return nil, fmt.Errorf("disabling updates for pr failed: %w", err)
 	}
 
+	metrics.DequeueOpsInc(&baseBranch.BranchID)
+
 	if q.IsEmpty() {
 		q.Stop()
 		delete(a.queues, baseBranch.BranchID)
+
 		logger := a.logger.With(pr.LogFields...).With(baseBranch.Logfields...)
+
 		logger.Debug("empty queue for base branch removed")
 	}
 

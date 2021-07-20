@@ -67,6 +67,8 @@ type queue struct {
 	lastRun atomic.Value // stored type: time.Time
 
 	staleTimeout time.Duration
+
+	metrics *queueMetrics
 }
 
 func newQueue(base *BaseBranch, logger *zap.Logger, ghClient GithubClient, retryer Retryer) *queue {
@@ -82,6 +84,16 @@ func newQueue(base *BaseBranch, logger *zap.Logger, ghClient GithubClient, retry
 	}
 
 	q.setLastRun(time.Time{})
+
+	if qm, err := newQueueMetrics(base.BranchID); err == nil {
+		q.metrics = qm
+	} else {
+		q.logger.Warn(
+			"could not create prometheus metrics",
+			logfields.Event("creating_queue_metrics_failed"),
+			zap.Error(err),
+		)
+	}
 
 	return &q
 }
@@ -171,6 +183,8 @@ func (q *queue) _enqueueActive(pr *PullRequest) error {
 		return fmt.Errorf("pull request already exist in active queue: %w", ErrAlreadyExists)
 	}
 
+	q.metrics.ActiveQueueSizeInc()
+
 	if newFirstElemen == nil {
 		q.logger.Debug(
 			"pull request appended to active queue",
@@ -224,6 +238,8 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 
 		pr.SetStateUnchangedSince(time.Time{})
 
+		q.metrics.SuspendQueueSizeDec()
+
 		return pr, nil
 	}
 
@@ -233,6 +249,8 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 	if removed == nil {
 		return nil, ErrNotFound
 	}
+
+	q.metrics.ActiveQueueSizeDec()
 
 	q.cancelActionForPR(prNumber)
 	removed.SetStateUnchangedSince(time.Time{})
@@ -267,6 +285,8 @@ func (q *queue) Suspend(prNumber int) error {
 		return fmt.Errorf("pr not in active queue: %w", ErrNotFound)
 	}
 
+	q.metrics.ActiveQueueSizeDec()
+
 	if _, exist := q.suspended[prNumber]; exist {
 		q.logger.DPanic("pr was in active and suspend queue, removed it from active queue")
 		return nil
@@ -278,6 +298,7 @@ func (q *queue) Suspend(prNumber int) error {
 	logger := q.logger.With(pr.LogFields...)
 
 	q.suspended[prNumber] = pr
+	q.metrics.SuspendQueueSizeInc()
 
 	if newFirstElem == nil {
 		return nil
@@ -317,6 +338,7 @@ func (q *queue) ResumeAll() {
 			"autoupdates for pr resumed",
 			logfields.Event("pull_request_updates_resumed"),
 		)
+		q.metrics.SuspendQueueSizeDec()
 	}
 }
 
@@ -335,6 +357,8 @@ func (q *queue) Resume(prNumber int) error {
 		return ErrNotFound
 	}
 
+	q.metrics.SuspendQueueSizeDec()
+
 	logger := q.logger.With(pr.LogFields...)
 
 	if err := q.Enqueue(pr); err != nil {
@@ -345,6 +369,8 @@ func (q *queue) Resume(prNumber int) error {
 
 		return fmt.Errorf("enqueing previously suspended pr failed: %w", err)
 	}
+
+	q.metrics.ActiveQueueSizeInc()
 
 	return nil
 }
@@ -793,5 +819,6 @@ func (q *queue) Stop() {
 
 	q.logger.Debug("waiting for routines to terminate")
 	q.actionPool.Wait()
+
 	q.logger.Debug("terminated")
 }

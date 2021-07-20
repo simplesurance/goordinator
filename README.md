@@ -105,6 +105,14 @@ Test coverage is insufficient, therefore bugs *main* branch are likely.
 The release binaries are in a more stable state. They are roughly tested and
 used internally.
 
+## Prometheus Metrics
+
+The following [Prometheus](https://prometheus.io/) metrics are served:
+
+- goordinator_autoupdater_queue_operations_total
+- goordinator_autoupdater_processed_github_events_total
+- goordinator_autoupdater_queued_prs_count
+
 ## FAQ
 
 #### Github Hook Events did not arrive because the Application was unreachable
