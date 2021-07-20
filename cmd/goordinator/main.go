@@ -449,16 +449,16 @@ func main() {
 	)
 
 	mux.HandleFunc(config.HTTPGithubWebhookEndpoint, gh.HTTPHandler)
-	logger.Debug(
-		"registered github webhook event handler",
+	logger.Info(
+		"registered github webhook event http endpoint",
 		logfields.Event("github_http_handler_registered"),
 		zap.String("endpoint", config.HTTPGithubWebhookEndpoint),
 	)
 
 	if config.PrometheusMetricsEndpoint != "" {
 		mux.Handle(config.PrometheusMetricsEndpoint, promhttp.Handler())
-		logger.Debug(
-			"registered prometheus metrics endpoint handler",
+		logger.Info(
+			"registered prometheus metrics http endpoint",
 			logfields.Event("prometheus_http_handler_registered"),
 			zap.String("endpoint", config.PrometheusMetricsEndpoint),
 		)
