@@ -218,6 +218,28 @@ func (q *queue) Enqueue(pr *PullRequest) error {
 	return q._enqueueActive(pr)
 }
 
+func (q *queue) _dequeueSuspended(prNumber int) (*PullRequest, error) {
+	pr, exist := q.suspended[prNumber]
+
+	if !exist {
+		return nil, ErrNotFound
+	}
+
+	delete(q.suspended, prNumber)
+	q.metrics.SuspendQueueSizeDec()
+
+	return pr, nil
+}
+
+func (q *queue) _dequeueActive(prNumber int) (removedPR *PullRequest, newFirstPr *PullRequest) {
+	pr, newFirstElem := q.active.Dequeue(prNumber)
+	if pr != nil {
+		q.metrics.ActiveQueueSizeDec()
+	}
+
+	return pr, newFirstElem
+}
+
 // Dequeue removes the pull request with the given number from the active or
 // suspended list.
 // If an update operation is currently running for it, it is canceled.
@@ -225,12 +247,10 @@ func (q *queue) Enqueue(pr *PullRequest) error {
 func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 	q.lock.Lock()
 
-	if pr, exist := q.suspended[prNumber]; exist {
-		logger := q.logger.With(pr.LogFields...)
-
-		delete(q.suspended, prNumber)
+	if pr, err := q._dequeueSuspended(prNumber); err == nil {
 		q.lock.Unlock()
 
+		logger := q.logger.With(pr.LogFields...)
 		logger.Debug(
 			"pull request removed from suspend queue",
 			logfields.Event("pull_request_dequeued"),
@@ -238,19 +258,17 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 
 		pr.SetStateUnchangedSince(time.Time{})
 
-		q.metrics.SuspendQueueSizeDec()
-
 		return pr, nil
+	} else if errors.Is(err, ErrNotFound) {
+		q.logger.DPanic("_dequeue_suspended returned unexpected error", zap.Error(err))
 	}
 
-	removed, newFirstElem := q.active.Dequeue(prNumber)
+	removed, newFirstElem := q._dequeueActive(prNumber)
 	q.lock.Unlock()
 
 	if removed == nil {
 		return nil, ErrNotFound
 	}
-
-	q.metrics.ActiveQueueSizeDec()
 
 	q.cancelActionForPR(prNumber)
 	removed.SetStateUnchangedSince(time.Time{})
@@ -280,12 +298,10 @@ func (q *queue) Suspend(prNumber int) error {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	pr, newFirstElem := q.active.Dequeue(prNumber)
+	pr, newFirstElem := q._dequeueActive(prNumber)
 	if pr == nil {
 		return fmt.Errorf("pr not in active queue: %w", ErrNotFound)
 	}
-
-	q.metrics.ActiveQueueSizeDec()
 
 	if _, exist := q.suspended[prNumber]; exist {
 		q.logger.DPanic("pr was in active and suspend queue, removed it from active queue")
@@ -333,12 +349,11 @@ func (q *queue) ResumeAll() {
 			continue
 		}
 
-		delete(q.suspended, prNum)
+		_, _ = q._dequeueSuspended(prNum)
 		logger.Info(
 			"autoupdates for pr resumed",
 			logfields.Event("pull_request_updates_resumed"),
 		)
-		q.metrics.SuspendQueueSizeDec()
 	}
 }
 
@@ -347,17 +362,12 @@ func (q *queue) ResumeAll() {
 // If the pull request is the only active pull request, the update operation is run for it.
 func (q *queue) Resume(prNumber int) error {
 	q.lock.Lock()
-	pr, exist := q.suspended[prNumber]
-	if exist {
-		delete(q.suspended, prNumber)
-	}
+	pr, err := q._dequeueSuspended(prNumber)
 	q.lock.Unlock()
 
-	if !exist {
-		return ErrNotFound
+	if err != nil {
+		return err
 	}
-
-	q.metrics.SuspendQueueSizeDec()
 
 	logger := q.logger.With(pr.LogFields...)
 
@@ -369,8 +379,6 @@ func (q *queue) Resume(prNumber int) error {
 
 		return fmt.Errorf("enqueing previously suspended pr failed: %w", err)
 	}
-
-	q.metrics.ActiveQueueSizeInc()
 
 	return nil
 }
