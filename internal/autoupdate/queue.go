@@ -259,7 +259,7 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 		pr.SetStateUnchangedSince(time.Time{})
 
 		return pr, nil
-	} else if errors.Is(err, ErrNotFound) {
+	} else if !errors.Is(err, ErrNotFound) {
 		q.logger.DPanic("_dequeue_suspended returned unexpected error", zap.Error(err))
 	}
 
