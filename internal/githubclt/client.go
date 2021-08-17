@@ -110,6 +110,7 @@ func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) 
 // Additionally it returns the SHA of the head commit for which the status was
 // checked.
 // If the PR is closed PullRequestIsClosedError is returned.
+// Known Bugs: https://github.com/simplesurance/goordinator/issues/28
 func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullRequestNumber int) (isUptodate bool, headSHA string, err error) {
 	pr, _, err := clt.clt.PullRequests.Get(ctx, owner, repo, pullRequestNumber)
 	if err != nil {
@@ -118,6 +119,15 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 
 	if pr.GetState() == "closed" {
 		return false, "", ErrPullRequestIsClosed
+	}
+
+	prHead := pr.GetHead()
+	if prHead == nil {
+		return false, "", errors.New("got pull request object with empty head")
+	}
+
+	if pr.GetMergeableState() == "behind" {
+		return false, prHead.GetSHA(), nil
 	}
 
 	base := pr.GetBase()
@@ -133,12 +143,7 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 		return false, "", fmt.Errorf("could not retrieve head SHA of base branch %q: %w", baseBranch, err)
 	}
 
-	head := pr.GetHead()
-	if head == nil {
-		return false, "", errors.New("got pull request object with empty head")
-	}
-
-	return PRbaseSHA == baseBranchHEADSHA, head.GetSHA(), nil
+	return PRbaseSHA == baseBranchHEADSHA, prHead.GetSHA(), nil
 }
 
 // CreateIssueComment creates a comment in a issue or pull request
