@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/go-github/v35/github"
+	"github.com/google/go-github/v38/github"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
