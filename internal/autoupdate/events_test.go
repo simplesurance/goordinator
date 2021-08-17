@@ -3,7 +3,7 @@ package autoupdate
 import (
 	"fmt"
 
-	"github.com/google/go-github/v35/github"
+	"github.com/google/go-github/v38/github"
 )
 
 func strPtr(in string) *string {
@@ -84,21 +84,10 @@ func newPullRequestClosedEvent(prNumber int, branchName, baseBranchName string) 
 func newPullRequestBaseBranchChangeEvent(prNumber int, branchName, baseBranchName, newBaseBranch string) *github.PullRequestEvent {
 	pr := newBasicPullRequestEvent(prNumber, branchName, newBaseBranch)
 
-	refFrom := struct {
-		From *string `json:"from,omitempty"`
-	}{
-		From: &baseBranchName,
-	}
-
-	base := struct {
-		Ref *struct {
-			From *string `json:"from,omitempty"`
-		} `json:"ref,omitempty"`
-		SHA *struct {
-			From *string `json:"from,omitempty"`
-		} `json:"sha,omitempty"`
-	}{
-		Ref: &refFrom,
+	base := github.EditBase{
+		Ref: &github.EditRef{
+			From: &baseBranchName,
+		},
 	}
 
 	pr.Changes = &github.EditChange{

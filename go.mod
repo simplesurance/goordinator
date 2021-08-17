@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/golang/mock v1.5.0
-	github.com/google/go-github/v35 v35.0.0
+	github.com/google/go-github/v38 v38.1.0
 	github.com/itchyny/gojq v0.12.2
 	github.com/pelletier/go-toml v1.9.0
 	github.com/prometheus/client_golang v1.11.0
@@ -22,5 +22,3 @@ require (
 	golang.org/x/tools v0.1.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
-
-replace github.com/google/go-github/v35 => github.com/simplesurance/go-github/v35 v35.3.1-0.20210616142130-cb65de31f15d
