@@ -99,8 +99,8 @@ The supported template strings are documented in the
 
 ## Project Status
 
-The project is an early stage. Breaking changes happen anytime. \
-Test coverage is insufficient, therefore bugs *main* branch are likely.
+The project is an early stage, breaking changes can happen anytime. \
+Test coverage is insufficient, therefore bugs in the *main* branch are likely.
 
 The release binaries are in a more stable state. They are roughly tested and
 used internally.
