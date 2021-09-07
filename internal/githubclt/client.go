@@ -57,21 +57,24 @@ type Client struct {
 	logger *zap.Logger
 }
 
-func (clt *Client) BranchHeadCommitSHA(ctx context.Context, owner, repo string, branch string) (string, error) {
-	resp, _, err := clt.clt.Repositories.ListCommits(ctx, owner, repo, &github.CommitsListOptions{
-		SHA:         branch,
-		ListOptions: github.ListOptions{Page: 1, PerPage: 1},
-	})
-
+// BranchIsBehindBase returns true if branch is based on the most recent commit of baseBranch.
+// If it is based on older commit, false is returned.
+func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, baseBranch, branch string) (behind bool, branchHEADSHA string, err error) {
+	cmp, _, err := clt.clt.Repositories.CompareCommits(ctx, owner, repo, baseBranch, branch, &github.ListOptions{PerPage: 1})
 	if err != nil {
-		return "", clt.wrapRetryableErrors(err)
+		return false, "", clt.wrapRetryableErrors(err)
 	}
 
-	if len(resp) != 1 {
-		return "", fmt.Errorf("expected 1 response, got %d", len(resp))
+	if len(cmp.Commits) == 0 {
+		return false, "", errors.New("compare response contains 0 commits")
 	}
 
-	return resp[0].GetSHA(), nil
+	branchHEADSHA = cmp.Commits[len(cmp.Commits)-1].GetSHA()
+	if branchHEADSHA == "" {
+		return false, "", errors.New("sha field of last commit is empty")
+	}
+
+	return cmp.GetBehindBy() > 0, branchHEADSHA, nil
 }
 
 const (
@@ -110,7 +113,6 @@ func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) 
 // Additionally it returns the SHA of the head commit for which the status was
 // checked.
 // If the PR is closed PullRequestIsClosedError is returned.
-// Known Bugs: https://github.com/simplesurance/goordinator/issues/28
 func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullRequestNumber int) (isUptodate bool, headSHA string, err error) {
 	pr, _, err := clt.clt.PullRequests.Get(ctx, owner, repo, pullRequestNumber)
 	if err != nil {
@@ -126,24 +128,36 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 		return false, "", errors.New("got pull request object with empty head")
 	}
 
+	prHeadSHA := prHead.GetSHA()
+	if prHeadSHA == "" {
+		return false, "", errors.New("got pull request object with empty head sha")
+	}
+
 	if pr.GetMergeableState() == "behind" {
-		return false, prHead.GetSHA(), nil
+		return false, prHeadSHA, nil
+	}
+
+	prBranch := prHead.GetRef()
+	if prBranch == "" {
+		return false, "", errors.New("got pull request object with empty ref field")
 	}
 
 	base := pr.GetBase()
 	if base == nil {
-		return false, "", errors.New("got pull request object with empty base")
+		return false, "", errors.New("got pull request object with empty base field")
 	}
 
 	baseBranch := base.GetRef()
-	PRbaseSHA := base.GetSHA()
-
-	baseBranchHEADSHA, err := clt.BranchHeadCommitSHA(ctx, owner, repo, baseBranch)
-	if err != nil {
-		return false, "", fmt.Errorf("could not retrieve head SHA of base branch %q: %w", baseBranch, err)
+	if baseBranch == "" {
+		return false, "", errors.New("got pull request object with empty base ref field")
 	}
 
-	return PRbaseSHA == baseBranchHEADSHA, prHead.GetSHA(), nil
+	isBehind, branchHEADSHA, err := clt.BranchIsBehindBase(ctx, owner, repo, baseBranch, prBranch)
+	if err != nil {
+		return false, branchHEADSHA, fmt.Errorf("evaluating if branch is behind base failed: %w", err)
+	}
+
+	return !isBehind, branchHEADSHA, nil
 }
 
 // CreateIssueComment creates a comment in a issue or pull request
