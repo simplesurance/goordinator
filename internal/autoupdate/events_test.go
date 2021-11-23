@@ -3,7 +3,7 @@ package autoupdate
 import (
 	"fmt"
 
-	"github.com/google/go-github/v38/github"
+	"github.com/google/go-github/v40/github"
 )
 
 func strPtr(in string) *string {

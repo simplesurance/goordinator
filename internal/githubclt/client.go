@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/google/go-github/v38/github"
+	"github.com/google/go-github/v40/github"
 	"go.uber.org/zap"
 
 	"github.com/simplesurance/goordinator/internal/goorderr"
