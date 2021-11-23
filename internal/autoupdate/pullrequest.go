@@ -8,7 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/google/go-github/v38/github"
+	"github.com/google/go-github/v40/github"
 
 	"github.com/simplesurance/goordinator/internal/logfields"
 )

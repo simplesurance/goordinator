@@ -45,6 +45,7 @@ const (
 var (
 	// eventTypeMapping maps webhooks types to their corresponding go-github struct types.
 	eventTypeMapping = map[string]string{
+		"branch_protection_rule":         "BranchProtectionRuleEvent",
 		"check_run":                      "CheckRunEvent",
 		"check_suite":                    "CheckSuiteEvent",
 		"commit_comment":                 "CommitCommentEvent",
@@ -92,6 +93,7 @@ var (
 		"user":                           "UserEvent",
 		"watch":                          "WatchEvent",
 		"workflow_dispatch":              "WorkflowDispatchEvent",
+		"workflow_job":                   "WorkflowJobEvent",
 		"workflow_run":                   "WorkflowRunEvent",
 	}
 )
@@ -190,7 +192,7 @@ func ValidatePayloadFromBody(contentType string, readable io.Reader, signature s
 		payload = []byte(form.Get(payloadFormParam))
 
 	default:
-		return nil, fmt.Errorf("Webhook request has unsupported Content-Type %q", contentType)
+		return nil, fmt.Errorf("webhook request has unsupported Content-Type %q", contentType)
 	}
 
 	// Only validate the signature if a secret token exists. This is intended for

@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/google/go-github/v38 v38.1.0
+	github.com/google/go-github/v40 v40.0.0
 	github.com/itchyny/gojq v0.12.5
 	github.com/pelletier/go-toml v1.9.4
 	github.com/prometheus/client_golang v1.11.0
@@ -36,9 +36,7 @@ require (
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/net v0.0.0-20211118161319-6a13c67c3ce4 // indirect
 	golang.org/x/sys v0.0.0-20211117180635-dee7805ff2e1 // indirect
-	golang.org/x/tools v0.1.5 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )

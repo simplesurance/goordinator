@@ -48,6 +48,21 @@ const (
 	mediaTypeIssueImportAPI    = "application/vnd.github.golden-comet-preview+json"
 
 	// Media Type values to access preview APIs
+	// These media types will be added to the API request as headers
+	// and used to enable particular features on GitHub API that are still in preview.
+	// After some time, specific media types will be promoted (to a "stable" state).
+	// From then on, the preview headers are not required anymore to activate the additional
+	// feature on GitHub.com's API. However, this API header might still be needed for users
+	// to run a GitHub Enterprise Server on-premise.
+	// It's not uncommon for GitHub Enterprise Server customers to run older versions which
+	// would probably rely on the preview headers for some time.
+	// While the header promotion is going out for GitHub.com, it may be some time before it
+	// even arrives in GitHub Enterprise Server.
+	// We keep those preview headers around to avoid breaking older GitHub Enterprise Server
+	// versions. Additionally, non-functional (preview) headers don't create any side effects
+	// on GitHub Cloud version.
+	//
+	// See https://github.com/google/go-github/pull/2125 for full context.
 
 	// https://developer.github.com/changes/2014-12-09-new-attributes-for-stars-api/
 	mediaTypeStarringPreview = "application/vnd.github.v3.star+json"
@@ -75,9 +90,6 @@ const (
 
 	// https://developer.github.com/changes/2017-02-28-user-blocking-apis-and-webhook/
 	mediaTypeBlockUsersPreview = "application/vnd.github.giant-sentry-fist-preview+json"
-
-	// https://developer.github.com/changes/2017-02-09-community-health/
-	mediaTypeRepositoryCommunityHealthMetricsPreview = "application/vnd.github.black-panther-preview+json"
 
 	// https://developer.github.com/changes/2017-05-23-coc-api/
 	mediaTypeCodesOfConductPreview = "application/vnd.github.scarlet-witch-preview+json"
@@ -181,6 +193,7 @@ type Client struct {
 	PullRequests   *PullRequestsService
 	Reactions      *ReactionsService
 	Repositories   *RepositoriesService
+	SCIM           *SCIMService
 	Search         *SearchService
 	Teams          *TeamsService
 	Users          *UsersService
@@ -308,6 +321,7 @@ func NewClient(httpClient *http.Client) *Client {
 	c.PullRequests = (*PullRequestsService)(&c.common)
 	c.Reactions = (*ReactionsService)(&c.common)
 	c.Repositories = (*RepositoriesService)(&c.common)
+	c.SCIM = (*SCIMService)(&c.common)
 	c.Search = (*SearchService)(&c.common)
 	c.Teams = (*TeamsService)(&c.common)
 	c.Users = (*UsersService)(&c.common)
@@ -458,7 +472,7 @@ type Response struct {
 	// calling the endpoint again.
 	NextPageToken string
 
-	// For APIs that support cursor pagination, such as RepositoryService.ListRepositoryHookDeliveries,
+	// For APIs that support cursor pagination, such as RepositoriesService.ListHookDeliveries,
 	// the following field will be populated to point to the next page.
 	// Set ListCursorOptions.Cursor to this value when calling the endpoint again.
 	Cursor string
@@ -709,10 +723,10 @@ func (c *Client) checkRateLimitBeforeDo(req *http.Request, rateLimitCategory rat
 	return nil
 }
 
-// compareHttpResponse returns whether two http.Response objects are equal or not.
+// compareHTTPResponse returns whether two http.Response objects are equal or not.
 // Currently, only StatusCode is checked. This function is used when implementing the
 // Is(error) bool interface for the custom error types in this package.
-func compareHttpResponse(r1, r2 *http.Response) bool {
+func compareHTTPResponse(r1, r2 *http.Response) bool {
 	if r1 == nil && r2 == nil {
 		return true
 	}
@@ -762,7 +776,7 @@ func (r *ErrorResponse) Is(target error) bool {
 	}
 
 	if r.Message != v.Message || (r.DocumentationURL != v.DocumentationURL) ||
-		!compareHttpResponse(r.Response, v.Response) {
+		!compareHTTPResponse(r.Response, v.Response) {
 		return false
 	}
 
@@ -828,7 +842,7 @@ func (r *RateLimitError) Is(target error) bool {
 
 	return r.Rate == v.Rate &&
 		r.Message == v.Message &&
-		compareHttpResponse(r.Response, v.Response)
+		compareHTTPResponse(r.Response, v.Response)
 }
 
 // AcceptedError occurs when GitHub returns 202 Accepted response with an
@@ -882,7 +896,7 @@ func (r *AbuseRateLimitError) Is(target error) bool {
 
 	return r.Message == v.Message &&
 		r.RetryAfter == v.RetryAfter &&
-		compareHttpResponse(r.Response, v.Response)
+		compareHTTPResponse(r.Response, v.Response)
 }
 
 // sanitizeURL redacts the client_secret parameter from the URL which may be
