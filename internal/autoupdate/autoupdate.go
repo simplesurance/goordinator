@@ -231,6 +231,7 @@ func (a *Autoupdater) eventLoop() {
 //    - PullRequestEvent synchronize for the pr branch
 //    - PushEvent for it's base-branch
 //    - StatusEvent with success state and the combined status for PullRequest is successful
+//    - PullRequestReviewEvent with action submitted.
 //
 //  - Trigger update with base-branch on:
 //    - PushEvent for a base branch
@@ -283,6 +284,18 @@ func (a *Autoupdater) processEvent(ctx context.Context, event *github_prov.Event
 		}
 
 		a.processStatusEvent(ctx, logger, ev)
+
+	case *github.PullRequestReviewEvent:
+		if !a.isMonitoredRepository(ev.GetRepo().GetOwner().GetLogin(), ev.GetRepo().GetName()) {
+			logger.Debug(
+				"event is for repository that is not monitored",
+				logEventEventIgnored,
+			)
+
+			return
+		}
+
+		a.processPullRequestReviewEvent(ctx, logger, ev)
 
 	default:
 		logger.Debug("event ignored", logEventEventIgnored)
@@ -683,6 +696,29 @@ func (a *Autoupdater) processPushEvent(ctx context.Context, logger *zap.Logger, 
 	}
 
 	a.ResumeAllForBaseBranch(ctx, bb)
+}
+func (a *Autoupdater) processPullRequestReviewEvent(ctx context.Context, logger *zap.Logger, ev *github.PullRequestReviewEvent) {
+	owner := ev.GetRepo().GetOwner().GetLogin()
+	repo := ev.GetRepo().GetName()
+	branch := ev.GetPullRequest().GetHead().GetRef()
+
+	logger = logger.With(
+		logfields.RepositoryOwner(owner),
+		logfields.Repository(repo),
+		logfields.Branch(branch),
+		logfields.PullRequest(ev.GetPullRequest().GetNumber()),
+	)
+
+	if ev.GetAction() != "submitted" {
+		logger.Debug(
+			"event ignored, action is not 'submitted'",
+			logEventEventIgnored,
+		)
+
+		return
+	}
+
+	a.ResumeIfStatusPositive(ctx, owner, repo, []string{branch})
 }
 
 func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger, ev *github.StatusEvent) {
