@@ -21,7 +21,7 @@ type Provider struct {
 
 type option func(*Provider)
 
-func WithPayloadSecret(secret string) option { // nolint:golint // returning unexported field is fine here
+func WithPayloadSecret(secret string) option { // nolint:revive // returning unexported field is fine here
 	return func(p *Provider) {
 		p.webhookSecret = []byte(secret)
 	}
