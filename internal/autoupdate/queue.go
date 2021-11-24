@@ -513,7 +513,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 		if errors.Is(baseBranchUpdateErr, context.Canceled) {
 			logger.Debug(
-				"updatating branch with base branch was cancelled",
+				"updating branch with base branch was cancelled",
 				logfields.Event("branch_update_cancelled"),
 			)
 
