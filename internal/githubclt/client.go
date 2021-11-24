@@ -310,6 +310,21 @@ func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sor
 	}
 }
 
+// PullRequestIsApproved returns true if the combined review status of a PR is approved.
+func (clt *Client) PullRequestIsApproved(ctx context.Context, owner, repo, branch string) (bool, error) {
+	q := fmt.Sprintf("repo:%s/%s+head:%s+review:approved+is:pr", owner, repo, branch)
+	res, _, err := clt.clt.Search.Issues(ctx, q, nil)
+	if err != nil {
+		return false, clt.wrapRetryableErrors(err)
+	}
+
+	if res.GetIncompleteResults() {
+		return false, goorderr.NewRetryableAnytimeError(errors.New("got incomplete results"))
+	}
+
+	return res.GetTotal() == 1, nil
+}
+
 func (clt *Client) wrapRetryableErrors(err error) error {
 	switch v := err.(type) {
 	case *github.RateLimitError:

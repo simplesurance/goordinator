@@ -41,3 +41,7 @@ func (c *DryGithubClient) CreateIssueComment(ctx context.Context, owner, repo st
 func (c *DryGithubClient) ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator {
 	return c.clt.ListPullRequests(ctx, owner, repo, state, sort, sortDirection)
 }
+
+func (c *DryGithubClient) PullRequestIsApproved(ctx context.Context, owner, repo, branch string) (bool, error) {
+	return c.clt.PullRequestIsApproved(ctx, owner, repo, branch)
+}

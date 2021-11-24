@@ -81,6 +81,21 @@ func (mr *MockGithubClientMockRecorder) ListPullRequests(ctx, owner, repo, state
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPullRequests", reflect.TypeOf((*MockGithubClient)(nil).ListPullRequests), ctx, owner, repo, state, sort, sortDirection)
 }
 
+// PullRequestIsApproved mocks base method.
+func (m *MockGithubClient) PullRequestIsApproved(ctx context.Context, owner, repo, branch string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PullRequestIsApproved", ctx, owner, repo, branch)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PullRequestIsApproved indicates an expected call of PullRequestIsApproved.
+func (mr *MockGithubClientMockRecorder) PullRequestIsApproved(ctx, owner, repo, branch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullRequestIsApproved", reflect.TypeOf((*MockGithubClient)(nil).PullRequestIsApproved), ctx, owner, repo, branch)
+}
+
 // UpdateBranch mocks base method.
 func (m *MockGithubClient) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
 	m.ctrl.T.Helper()
@@ -131,16 +146,4 @@ func (m *MockRetryer) Run(arg0 context.Context, arg1 func(context.Context) error
 func (mr *MockRetryerMockRecorder) Run(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockRetryer)(nil).Run), arg0, arg1, arg2)
-}
-
-// Stop mocks base method.
-func (m *MockRetryer) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
-}
-
-// Stop indicates an expected call of Stop.
-func (mr *MockRetryerMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockRetryer)(nil).Stop))
 }

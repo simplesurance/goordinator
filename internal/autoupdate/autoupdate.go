@@ -30,6 +30,7 @@ type GithubClient interface {
 	CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error)
 	CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error
 	ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator
+	PullRequestIsApproved(ctx context.Context, owner, repo, branch string) (bool, error)
 }
 
 // Retryer defines methods for running GithubClient operations repeately if
@@ -231,7 +232,7 @@ func (a *Autoupdater) eventLoop() {
 //    - PullRequestEvent synchronize for the pr branch
 //    - PushEvent for it's base-branch
 //    - StatusEvent with success state and the combined status for PullRequest is successful
-//    - PullRequestReviewEvent with action submitted.
+//    - PullRequestReviewEvent with action submitted and state approved
 //
 //  - Trigger update with base-branch on:
 //    - PushEvent for a base branch
@@ -700,25 +701,68 @@ func (a *Autoupdater) processPushEvent(ctx context.Context, logger *zap.Logger, 
 func (a *Autoupdater) processPullRequestReviewEvent(ctx context.Context, logger *zap.Logger, ev *github.PullRequestReviewEvent) {
 	owner := ev.GetRepo().GetOwner().GetLogin()
 	repo := ev.GetRepo().GetName()
+	prNumber := ev.GetPullRequest().GetNumber()
 	branch := ev.GetPullRequest().GetHead().GetRef()
+	reviewState := ev.GetReview().GetState()
+	action := ev.GetAction()
 
 	logger = logger.With(
 		logfields.RepositoryOwner(owner),
 		logfields.Repository(repo),
 		logfields.Branch(branch),
-		logfields.PullRequest(ev.GetPullRequest().GetNumber()),
+		logfields.PullRequest(prNumber),
+		zap.String("github.pull_request.review.state", reviewState),
+		zap.String("github.pull_request.review.action", action),
 	)
 
-	if ev.GetAction() != "submitted" {
-		logger.Debug(
-			"event ignored, action is not 'submitted'",
-			logEventEventIgnored,
+	switch reviewState {
+	case "approved":
+		if action == "submitted" {
+			a.ResumeIfStatusPositive(ctx, owner, repo, []string{branch})
+			return
+		}
+
+		if action != "dismissed" {
+			logger.Debug("event ignored, unhandled action value", logEventEventIgnored)
+			return
+		}
+
+		fallthrough
+
+	case "changes_requested":
+		baseBranch := ev.GetPullRequest().GetBase().GetRef()
+		bb, err := NewBaseBranch(owner, repo, baseBranch)
+		if err != nil {
+			logger.Warn(
+				"ignoring event, incomplete base branch information",
+				logEventEventIgnored,
+				zap.Error(err),
+			)
+			return
+		}
+
+		_, err = a.TriggerUpdateIfFirst(ctx, bb, &PRNumber{Number: prNumber})
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return
+			}
+
+			logger.Error("triggering update for first pr failed", zap.Error(err))
+			return
+		}
+
+		logger.Info(
+			"update for pull request triggered",
+			logfields.Event("pull_request_update_triggered"),
+			logFieldReason("pr_review_changes_requested"),
 		)
 
 		return
-	}
 
-	a.ResumeIfStatusPositive(ctx, owner, repo, []string{branch})
+	default:
+		logger.Debug("event ignored, unhandled review state", logEventEventIgnored)
+		return
+	}
 }
 
 func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger, ev *github.StatusEvent) {
@@ -898,9 +942,8 @@ func (a *Autoupdater) SuspendUpdates(
 	return updatedPrs, errors
 }
 
-// ResumeIfStatusPositive resumes updating for queued pull requests of the given branch
-// names, if updates for it are currently suspended and the GitHub API returns
-// a combined positive check status (success or pending).
+// ResumeIfStatusPositive calls ScheduleResumePRIfStatusPositive for all queued
+// PRs of the passed branchNames.
 func (a *Autoupdater) ResumeIfStatusPositive(ctx context.Context, owner, repo string, branchNames []string) {
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
@@ -1027,7 +1070,7 @@ func (a *Autoupdater) _triggerUpdateIfFirst(
 }
 
 // TriggerUpdateIfFirstAllQueues does the same then
-// TriggerUpdateIfFirstAllQueues but does not require to specify the base
+// _triggerUpdateIfFirst but does not require to specify the base
 // branch name.
 func (a *Autoupdater) TriggerUpdateIfFirstAllQueues(
 	ctx context.Context,
