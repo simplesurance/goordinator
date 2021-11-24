@@ -51,6 +51,20 @@ func newPullRequestLabeledEvent(prNumber int, branchName, baseBranchName, label 
 	return pr
 }
 
+func newPullRequestReviewEvent(prNumber int, branchName, baseBranchName, action, state string) *github.PullRequestReviewEvent {
+	return &github.PullRequestReviewEvent{
+		Action:      strPtr(action),
+		Review:      &github.PullRequestReview{State: strPtr(state)},
+		PullRequest: newBasicPullRequest(prNumber, baseBranchName, branchName),
+		Repo: &github.Repository{
+			Name: strPtr(repo),
+			Owner: &github.User{
+				Login: strPtr(repoOwner),
+			},
+		},
+	}
+}
+
 func newPullRequestAutomergeEnabledEvent(prNumber int, branchName, baseBranchName string) *github.PullRequestEvent {
 	pr := newBasicPullRequestEvent(prNumber, branchName, baseBranchName)
 	pr.Action = strPtr("auto_merge_enabled")

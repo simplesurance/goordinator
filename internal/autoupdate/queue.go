@@ -473,6 +473,36 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	ctx, cancelFunc := context.WithTimeout(ctx, retryTimeout)
 	defer cancelFunc()
 
+	isApproved, err := q.pullRequestIsApproved(ctx, pr)
+	if err != nil {
+		logger.Error(
+			"checking if pr is approved failed",
+			logfields.Event("approval_state_check_failed"),
+			zap.Error(err),
+		)
+		return
+	}
+
+	if !isApproved {
+		if err := q.Suspend(pr.Number); err != nil {
+			logger.Error(
+				"suspending PR because it is not approved , failed",
+				logfields.Event("suspending_pr_updates_failed"),
+				zap.Error(err),
+			)
+
+			return
+		}
+		logger.Info(
+			"updates suspended, pr is not approved",
+			logFieldReason("pr_not_approved"),
+			logEventUpdatesSuspended,
+			zap.Error(err),
+		)
+
+		return
+	}
+
 	baseBranchUpdateErr := q.retryer.Run(ctx, func(ctx context.Context) error {
 		var err error
 		branchChanged, err = q.ghClient.UpdateBranch(
@@ -711,6 +741,25 @@ func (q *queue) prCombinedStatus(ctx context.Context, pr *PullRequest) (string, 
 	return state, lastChange, err
 }
 
+// pullRequestIsApproved runs GitHubClient.PullRequestIsApproved and retries if
+// it failed with a retryable error.
+func (q *queue) pullRequestIsApproved(ctx context.Context, pr *PullRequest) (bool, error) {
+	var isApproved bool
+
+	err := q.retryer.Run(ctx, func(ctx context.Context) error {
+		var err error
+		isApproved, err = q.ghClient.PullRequestIsApproved(
+			ctx,
+			q.baseBranch.RepositoryOwner,
+			q.baseBranch.Repository,
+			pr.Branch,
+		)
+		return err
+	}, pr.LogFields)
+
+	return isApproved, err
+}
+
 func toStrSet(sl []string) map[string]struct{} {
 	result := make(map[string]struct{}, len(sl))
 
@@ -766,24 +815,34 @@ func (q *queue) resumeIfPRStatusPositive(ctx context.Context, pr *PullRequest) (
 		return false, ErrNotFound
 	}
 
+	isApproved, err := q.pullRequestIsApproved(ctx, pr)
+	if err != nil {
+		return false, fmt.Errorf("retrieving approval status failed: %w", err)
+	}
+
 	status, _, err := q.prCombinedStatus(ctx, pr)
 	if err != nil {
 		return false, fmt.Errorf("retrieving combined check status failed: %w", err)
 	}
 
-	if status == "success" || status == "pending" {
-		if err := q.Resume(pr.Number); err != nil {
-			return false, fmt.Errorf("resuming updates failed: %w", err)
-		}
-
-		return true, nil
+	if status != "success" && status != "pending" {
+		return false, nil
 	}
 
-	return false, nil
+	if !isApproved {
+		return false, nil
+	}
+
+	if err := q.Resume(pr.Number); err != nil {
+		return false, fmt.Errorf("resuming updates failed: %w", err)
+	}
+
+	return true, nil
+
 }
 
 // ScheduleResumePRIfStatusPositive schedules resuming autoupdates for a pull
-// request when it's combined check status is success or pending.
+// request when it's combined check status is success or pending and it's review status is approved.
 func (q *queue) ScheduleResumePRIfStatusPositive(ctx context.Context, pr *PullRequest) {
 	q.actionPool.Queue(func() {
 		ctx, cancelFunc := context.WithCancel(ctx)
