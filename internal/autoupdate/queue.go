@@ -500,6 +500,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 					logfields.Event("branch_update_failed"),
 					zap.Error(err),
 				)
+				return
 			}
 
 			logger.Info(
@@ -580,6 +581,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
+			return
 		}
 
 		logger.Error(
@@ -604,6 +606,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
+			return
 		}
 
 		logger.Info(
@@ -643,6 +646,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
+			return
 		}
 
 		logger.Info(
