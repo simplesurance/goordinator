@@ -82,18 +82,18 @@ func (mr *MockGithubClientMockRecorder) ListPullRequests(ctx, owner, repo, state
 }
 
 // PullRequestIsApproved mocks base method.
-func (m *MockGithubClient) PullRequestIsApproved(ctx context.Context, owner, repo, branch string) (bool, error) {
+func (m *MockGithubClient) PullRequestIsApproved(ctx context.Context, owner, repo string, prNumber int) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PullRequestIsApproved", ctx, owner, repo, branch)
+	ret := m.ctrl.Call(m, "PullRequestIsApproved", ctx, owner, repo, prNumber)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PullRequestIsApproved indicates an expected call of PullRequestIsApproved.
-func (mr *MockGithubClientMockRecorder) PullRequestIsApproved(ctx, owner, repo, branch interface{}) *gomock.Call {
+func (mr *MockGithubClientMockRecorder) PullRequestIsApproved(ctx, owner, repo, prNumber interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullRequestIsApproved", reflect.TypeOf((*MockGithubClient)(nil).PullRequestIsApproved), ctx, owner, repo, branch)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullRequestIsApproved", reflect.TypeOf((*MockGithubClient)(nil).PullRequestIsApproved), ctx, owner, repo, prNumber)
 }
 
 // UpdateBranch mocks base method.

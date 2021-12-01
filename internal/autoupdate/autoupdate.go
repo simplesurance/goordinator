@@ -30,7 +30,7 @@ type GithubClient interface {
 	CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error)
 	CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error
 	ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator
-	PullRequestIsApproved(ctx context.Context, owner, repo, branch string) (bool, error)
+	PullRequestIsApproved(ctx context.Context, owner, repo string, prNumber int) (bool, error)
 }
 
 // Retryer defines methods for running GithubClient operations repeately if
@@ -705,6 +705,7 @@ func (a *Autoupdater) processPullRequestReviewEvent(ctx context.Context, logger 
 	branch := ev.GetPullRequest().GetHead().GetRef()
 	reviewState := ev.GetReview().GetState()
 	action := ev.GetAction()
+	submittedAt := ev.GetReview().GetSubmittedAt()
 
 	logger = logger.With(
 		logfields.RepositoryOwner(owner),
@@ -713,6 +714,7 @@ func (a *Autoupdater) processPullRequestReviewEvent(ctx context.Context, logger 
 		logfields.PullRequest(prNumber),
 		zap.String("github.pull_request.review.state", reviewState),
 		zap.String("github.pull_request.review.action", action),
+		zap.Time("github.pull_request.review.submitted_at", submittedAt),
 	)
 
 	switch reviewState {
@@ -723,7 +725,7 @@ func (a *Autoupdater) processPullRequestReviewEvent(ctx context.Context, logger 
 		}
 
 		if action != "dismissed" {
-			logger.Debug("event ignored, unhandled action value", logEventEventIgnored)
+			logger.Debug("event ignored, irrelevant action value", logEventEventIgnored)
 			return
 		}
 
@@ -760,7 +762,7 @@ func (a *Autoupdater) processPullRequestReviewEvent(ctx context.Context, logger 
 		return
 
 	default:
-		logger.Debug("event ignored, unhandled review state", logEventEventIgnored)
+		logger.Debug("event ignored, irrelevant review state", logEventEventIgnored)
 		return
 	}
 }

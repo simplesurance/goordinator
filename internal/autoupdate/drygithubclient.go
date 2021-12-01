@@ -42,6 +42,6 @@ func (c *DryGithubClient) ListPullRequests(ctx context.Context, owner, repo, sta
 	return c.clt.ListPullRequests(ctx, owner, repo, state, sort, sortDirection)
 }
 
-func (c *DryGithubClient) PullRequestIsApproved(ctx context.Context, owner, repo, branch string) (bool, error) {
-	return c.clt.PullRequestIsApproved(ctx, owner, repo, branch)
+func (c *DryGithubClient) PullRequestIsApproved(ctx context.Context, owner, repo string, prNumber int) (bool, error) {
+	return c.clt.PullRequestIsApproved(ctx, owner, repo, prNumber)
 }
