@@ -659,13 +659,13 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	switch state {
 	case "success":
 		logger.Info(
-			"pull request is uptodate and status checks are successful",
+			"pull request is uptodate, approved and status checks are successful",
 			logfields.Event("pr_ready_to_merge"),
 		)
 
 	case "pending":
 		logger.Info(
-			"pull request is uptodate and status checks are pending",
+			"pull request is uptodate, approved and status checks are pending",
 			logfields.Event("pr_status_pending"),
 		)
 
@@ -752,7 +752,7 @@ func (q *queue) pullRequestIsApproved(ctx context.Context, pr *PullRequest) (boo
 			ctx,
 			q.baseBranch.RepositoryOwner,
 			q.baseBranch.Repository,
-			pr.Branch,
+			pr.Number,
 		)
 		return err
 	}, pr.LogFields)

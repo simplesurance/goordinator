@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/oauth2"
-
 	"github.com/google/go-github/v40/github"
+	"github.com/shurcooL/githubv4"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
 
 	"github.com/simplesurance/goordinator/internal/goorderr"
 	"github.com/simplesurance/goordinator/internal/logfields"
@@ -26,17 +26,19 @@ var ErrPullRequestIsClosed = errors.New("pull request is closed")
 
 // New returns a new github api client.
 func New(oauthAPItoken string) *Client {
+	httpClient := newHTTPClient(oauthAPItoken)
 	return &Client{
-		clt:    newGHClient(oauthAPItoken),
-		logger: zap.L().Named(loggerName),
+		restClt:    github.NewClient(httpClient),
+		graphQLClt: githubv4.NewClient(httpClient),
+		logger:     zap.L().Named(loggerName),
 	}
 }
 
-func newGHClient(apiToken string) *github.Client {
+func newHTTPClient(apiToken string) *http.Client {
 	if apiToken == "" {
-		return github.NewClient(&http.Client{
+		return &http.Client{
 			Timeout: DefaultHTTPClientTimeout,
-		})
+		}
 	}
 
 	ts := oauth2.StaticTokenSource(
@@ -46,21 +48,22 @@ func newGHClient(apiToken string) *github.Client {
 	tc := oauth2.NewClient(context.Background(), ts)
 	tc.Timeout = DefaultHTTPClientTimeout
 
-	return github.NewClient(tc)
+	return tc
 }
 
 // Client is an github API client.
 // All methods return a goorderr.RetryableError when an operation can be retried.
 // This can be e.g. the case when the API ratelimit is exceeded.
 type Client struct {
-	clt    *github.Client
-	logger *zap.Logger
+	restClt    *github.Client
+	graphQLClt *githubv4.Client
+	logger     *zap.Logger
 }
 
 // BranchIsBehindBase returns true if branch is based on the most recent commit of baseBranch.
 // If it is based on older commit, false is returned.
 func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, baseBranch, branch string) (behind bool, branchHEADSHA string, err error) {
-	cmp, _, err := clt.clt.Repositories.CompareCommits(ctx, owner, repo, baseBranch, branch, &github.ListOptions{PerPage: 1})
+	cmp, _, err := clt.restClt.Repositories.CompareCommits(ctx, owner, repo, baseBranch, branch, &github.ListOptions{PerPage: 1})
 	if err != nil {
 		return false, "", clt.wrapRetryableErrors(err)
 	}
@@ -88,7 +91,7 @@ const (
 func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error) {
 	var lastChange time.Time
 
-	status, _, err := clt.clt.Repositories.GetCombinedStatus(ctx, owner, repo, ref, nil)
+	status, _, err := clt.restClt.Repositories.GetCombinedStatus(ctx, owner, repo, ref, nil)
 	if err != nil {
 		return "", lastChange, clt.wrapRetryableErrors(err)
 	}
@@ -114,7 +117,7 @@ func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) 
 // checked.
 // If the PR is closed PullRequestIsClosedError is returned.
 func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullRequestNumber int) (isUptodate bool, headSHA string, err error) {
-	pr, _, err := clt.clt.PullRequests.Get(ctx, owner, repo, pullRequestNumber)
+	pr, _, err := clt.restClt.PullRequests.Get(ctx, owner, repo, pullRequestNumber)
 	if err != nil {
 		return false, "", clt.wrapRetryableErrors(err)
 	}
@@ -162,7 +165,7 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 
 // CreateIssueComment creates a comment in a issue or pull request
 func (clt *Client) CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error {
-	_, _, err := clt.clt.Issues.CreateComment(ctx, owner, repo, issueOrPRNr, &github.IssueComment{Body: &comment})
+	_, _, err := clt.restClt.Issues.CreateComment(ctx, owner, repo, issueOrPRNr, &github.IssueComment{Body: &comment})
 	return clt.wrapRetryableErrors(err)
 }
 
@@ -198,7 +201,7 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 		return false, nil
 	}
 
-	_, _, err = clt.clt.PullRequests.UpdateBranch(ctx, owner, repo, pullRequestNumber, &github.PullRequestBranchUpdateOptions{ExpectedHeadSHA: &prHEADSHA})
+	_, _, err = clt.restClt.PullRequests.UpdateBranch(ctx, owner, repo, pullRequestNumber, &github.PullRequestBranchUpdateOptions{ExpectedHeadSHA: &prHEADSHA})
 	if err != nil {
 		if _, ok := err.(*github.AcceptedError); ok {
 			// It is not clear if the response ensures that
@@ -270,7 +273,7 @@ func (it *PRIter) Next() (*github.PullRequest, error) {
 		return nil, nil
 	}
 
-	prs, resp, err := it.clt.clt.PullRequests.List(it.ctx, it.owner, it.repo, &github.PullRequestListOptions{
+	prs, resp, err := it.clt.restClt.PullRequests.List(it.ctx, it.owner, it.repo, &github.PullRequestListOptions{
 		State:     "open",
 		Sort:      it.filterState,
 		Direction: it.sortOrder,
@@ -311,18 +314,29 @@ func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sor
 }
 
 // PullRequestIsApproved returns true if the combined review status of a PR is approved.
-func (clt *Client) PullRequestIsApproved(ctx context.Context, owner, repo, branch string) (bool, error) {
-	q := fmt.Sprintf("repo:%s/%s+head:%s+review:approved+is:pr", owner, repo, branch)
-	res, _, err := clt.clt.Search.Issues(ctx, q, nil)
+func (clt *Client) PullRequestIsApproved(ctx context.Context, owner, repo string, prNumber int) (bool, error) {
+	var q struct {
+		Repository struct {
+			PullRequest struct {
+				ReviewDecision string
+			} `graphql:"pullRequest(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+	vars := map[string]interface{}{
+		"owner":  githubv4.String(owner),
+		"name":   githubv4.String(repo),
+		"number": githubv4.Int(prNumber),
+	}
+
+	err := clt.graphQLClt.Query(ctx, &q, vars)
 	if err != nil {
-		return false, clt.wrapRetryableErrors(err)
+		return false, err
 	}
 
-	if res.GetIncompleteResults() {
-		return false, goorderr.NewRetryableAnytimeError(errors.New("got incomplete results"))
-	}
+	reviewDecision := q.Repository.PullRequest.ReviewDecision
 
-	return res.GetTotal() == 1, nil
+	// nil means repository is configured to not require reviews
+	return reviewDecision == "APPROVED" || reviewDecision == "nil", nil
 }
 
 func (clt *Client) wrapRetryableErrors(err error) error {
