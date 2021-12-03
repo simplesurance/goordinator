@@ -1084,7 +1084,7 @@ func TestReviewApprovedEventResumesSuspendedPR(t *testing.T) {
 	assert.Len(t, queue.suspended, 1)
 
 	mockSuccessfulPullRequestIsApprovedCall(ghClient, prNumber).Times(2)
-	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).AnyTimes()
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
 
 	evChan <- &github_prov.Event{Event: newPullRequestReviewEvent(prNumber, prBranch, baseBranch, "submitted", "approved")}
 	waitForProcessedEventCnt(t, autoupdater, 2)
@@ -1104,7 +1104,7 @@ func TestDismissingApprovalSuspendsActivePR(t *testing.T) {
 	triggerLabel := "queue-add"
 
 	mockPullRequestIsApprovedCall(ghClient, prNumber, true).Times(1)
-	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).AnyTimes()
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -1147,7 +1147,7 @@ func TestRequestingReviewChangesSuspendsPR(t *testing.T) {
 	triggerLabel := "queue-add"
 
 	mockPullRequestIsApprovedCall(ghClient, prNumber, true).Times(1)
-	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).AnyTimes()
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
