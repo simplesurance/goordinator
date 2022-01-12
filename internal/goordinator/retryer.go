@@ -19,6 +19,7 @@ const DefTimeout = 24 * time.Hour
 const (
 	defBackoffInitialInterval     = 5 * time.Second
 	defBackoffRandomizationFactor = 0.5
+	defBackoffMaxElapsedTime      = 0 // disabled, max retry time is controlled via ctx
 )
 
 // Retryer executes a function repeatedly until it was successful or it's
@@ -29,6 +30,7 @@ type Retryer struct {
 	defTimeout                 time.Duration
 	backoffInitialInterval     time.Duration
 	backoffRandomizationFactor float64
+	backoffMaxElapsedTime      time.Duration
 }
 
 func NewRetryer() *Retryer {
@@ -38,6 +40,7 @@ func NewRetryer() *Retryer {
 		defTimeout:                 DefTimeout,
 		backoffInitialInterval:     defBackoffInitialInterval,
 		backoffRandomizationFactor: defBackoffRandomizationFactor,
+		backoffMaxElapsedTime:      defBackoffMaxElapsedTime,
 	}
 }
 
@@ -62,6 +65,7 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 	bo := backoff.NewExponentialBackOff()
 	bo.InitialInterval = r.backoffInitialInterval
 	bo.RandomizationFactor = r.backoffRandomizationFactor
+	bo.MaxElapsedTime = r.backoffMaxElapsedTime
 
 	logger := r.logger.With(logF...)
 
@@ -97,6 +101,10 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 						retryIn = untilAfter
 					} else {
 						retryIn = bo.NextBackOff()
+					}
+
+					if retryIn == backoff.Stop {
+						return errors.New("bug: backoff timer returned stop signal, this should not happen, max elapsed time is 0")
 					}
 
 					timerWasActive := retryTimer.Reset(retryIn)

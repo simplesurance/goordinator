@@ -103,3 +103,36 @@ func TestBackoffInterval(t *testing.T) {
 func minInterval(retryer *Retryer) int64 {
 	return int64(math.Floor(float64(retryer.backoffInitialInterval) * (1 - retryer.backoffRandomizationFactor)))
 }
+
+func TestBackOffIntervalReachesMaxElapsedTime(t *testing.T) {
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
+
+	r := NewRetryer()
+	r.backoffInitialInterval = 500 * time.Millisecond
+	r.backoffMaxElapsedTime = time.Millisecond
+	t.Cleanup(r.Stop)
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancelFunc()
+
+	var retryTimes []time.Time
+
+	err := r.Run(ctx, func(context.Context) error {
+		retryTimes = append(retryTimes, time.Now())
+		return goorderr.NewRetryableAnytimeError(errors.New("err"))
+	}, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bug: backoff timer returned stop signal")
+
+	require.GreaterOrEqual(t, len(retryTimes), 2)
+	t.Logf("retries: %d", len(retryTimes))
+
+	for i := 1; i < len(retryTimes); i++ {
+		d := retryTimes[i].Sub(retryTimes[i-1])
+		require.GreaterOrEqualf(t, d, minInterval(r),
+			"time between retry %d and %d is %s, expected >=%s",
+			i-1, i, retryTimes[i-1], retryTimes[i], d, minInterval(r),
+		)
+	}
+}
