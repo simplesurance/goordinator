@@ -62,22 +62,13 @@ type Client struct {
 
 // BranchIsBehindBase returns true if branch is based on the most recent commit of baseBranch.
 // If it is based on older commit, false is returned.
-func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, baseBranch, branch string) (behind bool, branchHEADSHA string, err error) {
+func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, baseBranch, branch string) (behind bool, err error) {
 	cmp, _, err := clt.restClt.Repositories.CompareCommits(ctx, owner, repo, baseBranch, branch, &github.ListOptions{PerPage: 1})
 	if err != nil {
-		return false, "", clt.wrapRetryableErrors(err)
+		return false, clt.wrapRetryableErrors(err)
 	}
 
-	if len(cmp.Commits) == 0 {
-		return false, "", errors.New("compare response contains 0 commits")
-	}
-
-	branchHEADSHA = cmp.Commits[len(cmp.Commits)-1].GetSHA()
-	if branchHEADSHA == "" {
-		return false, "", errors.New("sha field of last commit is empty")
-	}
-
-	return cmp.GetBehindBy() > 0, branchHEADSHA, nil
+	return cmp.GetBehindBy() > 0, nil
 }
 
 const (
@@ -155,12 +146,12 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 		return false, "", errors.New("got pull request object with empty base ref field")
 	}
 
-	isBehind, branchHEADSHA, err := clt.BranchIsBehindBase(ctx, owner, repo, baseBranch, prBranch)
+	isBehind, err := clt.BranchIsBehindBase(ctx, owner, repo, baseBranch, prBranch)
 	if err != nil {
-		return false, branchHEADSHA, fmt.Errorf("evaluating if branch is behind base failed: %w", err)
+		return false, "", fmt.Errorf("evaluating if branch is behind base failed: %w", err)
 	}
 
-	return !isBehind, branchHEADSHA, nil
+	return !isBehind, prHeadSHA, nil
 }
 
 // CreateIssueComment creates a comment in a issue or pull request
