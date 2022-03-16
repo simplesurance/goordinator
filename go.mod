@@ -1,6 +1,6 @@
 module github.com/simplesurance/goordinator
 
-go 1.18
+go 1.17
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
