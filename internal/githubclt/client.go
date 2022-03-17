@@ -78,6 +78,49 @@ const (
 	StatusSuccess = "success"
 )
 
+type PRStatus struct {
+	ReviewDecision         string
+	StatusCheckRollupState string
+}
+
+// ReadyForMergeStatus returns the current ReviewDecision and
+// StatusCheckRollupState of a Pull-Request.
+func (clt *Client) ReadyForMergeStatus(ctx context.Context, owner, repo string, prNumber int) (*PRStatus, error) {
+	var q struct {
+		Repository struct {
+			PullRequest struct {
+				ReviewDecision string
+				Commits        struct {
+					Nodes []struct {
+						Commit struct {
+							StatusCheckRollup struct {
+								State string
+							}
+						}
+					}
+				} `graphql:"commits(last: $last)"`
+			} `graphql:"pullRequest(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	vars := map[string]interface{}{
+		"owner":  githubv4.String(owner),
+		"name":   githubv4.String(repo),
+		"number": githubv4.Int(prNumber),
+		"last":   githubv4.Int(1),
+	}
+
+	err := clt.graphQLClt.Query(ctx, &q, vars)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PRStatus{
+		ReviewDecision:         q.Repository.PullRequest.ReviewDecision,
+		StatusCheckRollupState: q.Repository.PullRequest.Commits.Nodes[0].Commit.StatusCheckRollup.State,
+	}, nil
+}
+
 // CombinedStatus returns the combined check status and the last time the status changed for the ref.
 func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error) {
 	var lastChange time.Time
