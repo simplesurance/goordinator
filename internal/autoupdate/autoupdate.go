@@ -820,11 +820,46 @@ func (a *Autoupdater) processCheckRunEvent(ctx context.Context, logger *zap.Logg
 
 	if len(branches) == 0 {
 		logger.Info(
-			"ignorning event, pull request or branches fields are empty",
+			"ignoring event, pull request or branches fields are empty",
 			logEventEventIgnored,
 		)
 
 		return
+	}
+
+	for _, pr := range checkRun.PullRequests {
+		baseBranch := pr.GetBase().GetRef()
+		prNumber := pr.GetNumber()
+
+		logger = logger.With(
+			logfields.BaseBranch(baseBranch),
+			logfields.PullRequest(prNumber),
+		)
+
+		bb, err := NewBaseBranch(owner, repo, baseBranch)
+		if err != nil {
+			logger.Warn(
+				"ignoring check run event for pull-request, incomplete base branch information",
+				logEventEventIgnored,
+				zap.Error(err),
+			)
+
+			err := a.SetPRStaleSinceIfNewer(ctx, bb, pr.GetNumber(), time.Now())
+			if err != nil {
+				if errors.Is(err, ErrNotFound) {
+					logger.Debug(
+						"pr not queued, can not update stale timestamp",
+						logEventEventIgnored,
+					)
+					continue
+				}
+				logger.Error(
+					"updating stale timestamp failed",
+					zap.Error(err),
+					logfields.Event("updating_stale_timestamp_failed"),
+				)
+			}
+		}
 	}
 
 	switch checkRun.GetConclusion() {
@@ -879,6 +914,15 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 		)
 
 		return
+	}
+
+	notFound := a.SetPRStaleSinceIfNewerByBranch(ctx, owner, repo, branches, ev.GetUpdatedAt().Time)
+	if len(notFound) > 0 {
+		logger.Debug(
+			"no pr queued for branches, can not update stale timestamp",
+			zap.Strings("not_found_branches", notFound),
+			logEventEventIgnored,
+		)
 	}
 
 	switch ev.GetState() {
@@ -1032,6 +1076,52 @@ func (a *Autoupdater) SuspendUpdates(
 	}
 
 	return updatedPrs, errors
+}
+
+// SetPRStaleSinceIfNewerByBranch sets the staleSince timestamp of the PRs for
+// the given branch names to updatdAt, if it is newer then the current
+// staleSince timestamp.
+// The method returns a list of branch names for that no queued PR could be
+// found.
+func (a *Autoupdater) SetPRStaleSinceIfNewerByBranch(
+	ctx context.Context,
+	owner, repo string,
+	branchNames []string,
+	updatedAt time.Time,
+) (notFound []string) {
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	missing := toStrSet(branchNames)
+	for baseBranch, q := range a.queues {
+		if baseBranch.Repository != repo || baseBranch.RepositoryOwner != owner {
+			continue
+		}
+
+		missing = q.SetPRStaleSinceIfNewerByBranch(branchNames, updatedAt)
+	}
+
+	return strSetToSlice(missing)
+}
+
+// SetPRStaleSinceIfNewer sets the staleSince timestamp of the PR to updatedAt,
+// if it is newer then the current staleSince timestamp.
+// If the PR is not queued for autoupdates, ErrNotFound is returned.
+func (a *Autoupdater) SetPRStaleSinceIfNewer(
+	ctx context.Context,
+	baseBranch *BaseBranch,
+	prNumber int,
+	updatedAt time.Time,
+) error {
+	a.queuesLock.Lock()
+	defer a.queuesLock.Unlock()
+
+	q, exist := a.queues[baseBranch.BranchID]
+	if !exist {
+		return ErrNotFound
+	}
+
+	return q.SetPRStaleSinceIfNewer(prNumber, updatedAt)
 }
 
 // ResumeIfStatusPositive calls ScheduleResumePRIfStatusPositive for all queued

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/simplesurance/goordinator/internal/autoupdate/mocks"
@@ -606,7 +607,9 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.testName, func(t *testing.T) {
-			t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
+			t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t,
+				zaptest.Level(zapcore.DebugLevel),
+			).Named(t.Name()).WithOptions(zap.WithCaller(true))))
 			evChan := make(chan *github_prov.Event, 1)
 			defer close(evChan)
 
@@ -630,7 +633,7 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 				}).
 				MinTimes(3)
 
-			mockCombindedStatus(ghClient, "failed", time.Now(), nil).Times(3)
+			mockCombindedStatus(ghClient, "failure", time.Now(), nil).Times(3)
 			mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
 			mockSuccessfulPullRequestIsApprovedCall(ghClient, 2).AnyTimes()
 			mockSuccessfulPullRequestIsApprovedCall(ghClient, 3).AnyTimes()
