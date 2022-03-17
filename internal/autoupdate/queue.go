@@ -603,7 +603,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		return
 	}
 
-	state, lastChange, err := q.prCombinedStatus(ctx, pr)
+	state, _, err := q.prCombinedStatus(ctx, pr)
 	if err != nil {
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
@@ -623,8 +623,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 		return
 	}
-
-	pr.SetStateUnchangedSinceIfNewer(lastChange)
 
 	logger = logger.With(zap.String("github.pull_request.combined_status", state))
 	logger.Debug("retrieved combined pr status")
@@ -760,54 +758,83 @@ func (q *queue) pullRequestIsApproved(ctx context.Context, pr *PullRequest) (boo
 	return isApproved, err
 }
 
-func toStrSet(sl []string) map[string]struct{} {
-	result := make(map[string]struct{}, len(sl))
+func (q *queue) prsByBranch(branchNames map[string]struct{}) (
+	prs []*PullRequest, notFound map[string]struct{},
+) {
+	q.lock.Lock()
+	defer q.lock.Unlock()
 
-	for _, elem := range sl {
-		result[elem] = struct{}{}
-	}
+	suspendedPrs, missing := q._suspendedPRsbyBranch(branchNames)
+	activePrs, notFound := q._activePRsByBranch(missing)
 
-	return result
+	return append(suspendedPrs, activePrs...), notFound
 }
 
 // ActivePRsByBranch returns all pull requests that are in active state and for
 // one of the branches in branchNames.
 func (q *queue) ActivePRsByBranch(branchNames []string) []*PullRequest {
-	var result []*PullRequest
-
 	branchSet := toStrSet(branchNames)
 
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
+	prs, _ := q._activePRsByBranch(branchSet)
+	return prs
+}
+
+func (q *queue) _activePRsByBranch(branchSet map[string]struct{}) (
+	prs []*PullRequest, notFound map[string]struct{},
+) {
+	var result []*PullRequest
+	notFound = cpBranchNames(branchSet)
+
 	q.active.Foreach(func(pr *PullRequest) bool {
 		if _, exist := branchSet[pr.Branch]; exist {
 			result = append(result, pr)
+			delete(notFound, pr.Branch)
 		}
 
 		return true
 	})
 
-	return result
+	return result, notFound
 }
 
 // SuspendedPRsbyBranch returns all pull requests that are in suspended state
 // and for one of the branches in branchNames.
 func (q *queue) SuspendedPRsbyBranch(branchNames []string) []*PullRequest {
-	var result []*PullRequest
-
 	branchSet := toStrSet(branchNames)
 
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
+	prs, _ := q._suspendedPRsbyBranch(branchSet)
+	return prs
+}
+
+func cpBranchNames(in map[string]struct{}) map[string]struct{} {
+	res := make(map[string]struct{}, len(in))
+	for k := range in {
+		res[k] = struct{}{}
+	}
+
+	return res
+}
+
+func (q *queue) _suspendedPRsbyBranch(branchSet map[string]struct{}) (
+	prs []*PullRequest, notfound map[string]struct{},
+) {
+	var result []*PullRequest
+	notFound := cpBranchNames(branchSet)
+
 	for _, pr := range q.suspended {
 		if _, exist := branchSet[pr.Branch]; exist {
 			result = append(result, pr)
+			delete(notFound, pr.Branch)
 		}
 	}
 
-	return result
+	return result, notFound
 }
 
 func (q *queue) resumeIfPRStatusPositive(ctx context.Context, pr *PullRequest) (bool, error) {
@@ -892,4 +919,52 @@ func (q *queue) Stop() {
 	q.actionPool.Wait()
 
 	q.logger.Debug("terminated")
+}
+
+// SetPRStaleSinceIfNewerByBranch sets the timestamp to when the last change on
+// the PR happened to t, if t is newer then the current value, for the passed
+// branches.
+// The function returns a Set of branch names for that no PR in the queue could
+// be found.
+func (q *queue) SetPRStaleSinceIfNewerByBranch(branchNames []string, t time.Time) (
+	notFound map[string]struct{}) {
+
+	branchSet := toStrSet(branchNames)
+	prs, notFound := q.prsByBranch(branchSet)
+
+	for _, pr := range prs {
+		pr.SetStateUnchangedSinceIfNewer(t)
+	}
+
+	return notFound
+}
+
+// SetPRStaleSinceIfNewer if a PullRequest with the given number exist
+// in the active queue or dequeued list, it's unchangedSince timestamp is set to
+// t, if it is newer.
+// If it is older, nothing is done.
+// If a PR with the given number can not be found, ErrNotFound is returned.
+func (q *queue) SetPRStaleSinceIfNewer(prNumber int, t time.Time) error {
+	pr := q.getPullRequest(prNumber)
+	if pr == nil {
+		return ErrNotFound
+	}
+
+	pr.SetStateUnchangedSinceIfNewer(t)
+	return nil
+}
+
+// getPullRequest returns the PullRequest with the given PrNumber if it exist in
+// the suspended list or active queue.
+// If it does not, nil is returned.
+func (q *queue) getPullRequest(prNumber int) *PullRequest {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
+	pr, exist := q.suspended[prNumber]
+	if exist {
+		return pr
+	}
+
+	return q.active.Get(prNumber)
 }
