@@ -232,6 +232,8 @@ func (a *Autoupdater) eventLoop() {
 //    - PullRequestEvent synchronize for the pr branch
 //    - PushEvent for it's base-branch
 //    - StatusEvent with success state and the combined status for PullRequest is successful
+//    - CheckRunEvent with a neutral, success or skipped check conclusion and
+//      the combined status for PullRequest is successful
 //    - PullRequestReviewEvent with action submitted and state approved
 //
 //  - Trigger update with base-branch on:
@@ -239,6 +241,8 @@ func (a *Autoupdater) eventLoop() {
 //    - (updates for pull request branches on git-push are triggered via
 //       PullRequest synchronize events)
 //    - StatusEvent with error or failure state
+//    - CheckRunEvent with cancelled, failure, timed_out or action_required
+//      conclusion
 //
 // Other events are ignored and a debug message is logged for those.
 func (a *Autoupdater) processEvent(ctx context.Context, event *github_prov.Event) {
@@ -285,6 +289,17 @@ func (a *Autoupdater) processEvent(ctx context.Context, event *github_prov.Event
 		}
 
 		a.processStatusEvent(ctx, logger, ev)
+
+	case *github.CheckRunEvent:
+		if !a.isMonitoredRepository(ev.GetRepo().GetOwner().GetLogin(), ev.GetRepo().GetName()) {
+			logger.Debug(
+				"event is for repository that is not monitored",
+				logEventEventIgnored,
+			)
+
+			return
+		}
+		a.processCheckRunEvent(ctx, logger, ev)
 
 	case *github.PullRequestReviewEvent:
 		if !a.isMonitoredRepository(ev.GetRepo().GetOwner().GetLogin(), ev.GetRepo().GetName()) {
@@ -767,15 +782,30 @@ func (a *Autoupdater) processPullRequestReviewEvent(ctx context.Context, logger 
 	}
 }
 
-func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger, ev *github.StatusEvent) {
-	branches := ghBranchesAsStrings(ev.Branches)
+func prBranches(prs []*github.PullRequest) []string {
+	res := make([]string, 0, len(prs))
+
+	for _, pr := range prs {
+		branch := pr.GetHead().GetRef()
+		// should not happen that it is empty
+		if branch != "" {
+			res = append(res, pr.GetHead().GetRef())
+		}
+	}
+
+	return res
+}
+
+func (a *Autoupdater) processCheckRunEvent(ctx context.Context, logger *zap.Logger, ev *github.CheckRunEvent) {
+	checkRun := ev.GetCheckRun()
+	branches := prBranches(checkRun.PullRequests)
 	owner := ev.GetRepo().GetOwner().GetLogin()
 	repo := ev.GetRepo().GetName()
-	// TODO: ensure owner and repo are not empty
 
 	logger = logger.With(
 		zap.Strings("git.branches", branches),
-		logfields.CheckStatus(ev.GetState()),
+		logfields.CheckConclusion(checkRun.GetConclusion()),
+		logfields.CheckStatus(checkRun.GetStatus()),
 		logfields.RepositoryOwner(owner),
 		logfields.Repository(repo),
 	)
@@ -784,7 +814,61 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 
 	if len(branches) == 0 {
 		logger.Info(
-			"ignorning event, branch field is empty",
+			"ignorning event, pull request or branches fields are empty",
+			logEventEventIgnored,
+		)
+
+		return
+	}
+
+	switch checkRun.GetConclusion() {
+	case "cancelled", "failure", "timed_out", "action_required":
+		for _, branch := range branches {
+			pr, err := a.TriggerUpdateIfFirstAllQueues(ctx, owner, repo, &PRBranch{BranchName: branch})
+			if err != nil {
+				if errors.Is(err, ErrNotFound) {
+					logger.Debug("processed checkRun event for branch that is not queued for updates")
+				} else {
+					logger.Error("triggering update failed", zap.Error(err))
+				}
+
+				continue
+			}
+
+			logger.With(pr.LogFields...).Info(
+				"update triggered, negative check run conclusion received",
+				logFieldReason("check_run_result_negative"),
+				logEventUpdatesSuspended,
+			)
+		}
+
+	case "neutral", "success", "skipped":
+		a.ResumeIfStatusPositive(ctx, owner, repo, branches)
+
+	default: // stale event is ignored
+		logger.Debug("ignoring event with irrelevant or unsupported check run conclusion",
+			logEventEventIgnored,
+		)
+	}
+}
+
+func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger, ev *github.StatusEvent) {
+	branches := ghBranchesAsStrings(ev.Branches)
+	owner := ev.GetRepo().GetOwner().GetLogin()
+	repo := ev.GetRepo().GetName()
+
+	logger = logger.With(
+		zap.Strings("git.branches", branches),
+		logfields.StatusState(ev.GetState()),
+		logfields.RepositoryOwner(owner),
+		logfields.Repository(repo),
+	)
+
+	logger.Debug("event received")
+
+	if len(branches) == 0 {
+		logger.Info(
+			"ignorning event, pull request or branches fields are empty",
 			logEventEventIgnored,
 		)
 

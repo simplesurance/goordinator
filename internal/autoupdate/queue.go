@@ -683,7 +683,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 			"updates suspended, status check is negative",
 			logFieldReason("status_check_negative"),
 			logEventUpdatesSuspended,
-			logfields.CheckStatus(state),
+			logfields.StatusState(state),
 			zap.Error(err),
 		)
 
@@ -707,7 +707,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 			"updates suspended, status check value is invalid",
 			logFieldReason("status_check_invalid"),
 			logEventUpdatesSuspended,
-			logfields.CheckStatus(state),
+			logfields.StatusState(state),
 			zap.Error(err),
 		)
 	}

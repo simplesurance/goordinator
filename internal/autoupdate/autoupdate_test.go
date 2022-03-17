@@ -562,185 +562,272 @@ func TestClosingPRDequeuesPR(t *testing.T) {
 	require.Nil(t, queue, "baseBranch queue still exist after only PR for the base branch was closed")
 }
 
-func TestSuccessStatusEventResumesPRs(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
+func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
+	tcs := []struct {
+		testName         string
+		newResumeEventFn func(branchNames ...string) *github_prov.Event
+	}{
+		{
+			testName: "success-status",
+			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
+				return &github_prov.Event{
+					Event: newStatusEvent("success", branchNames...),
+				}
+			},
+		},
 
-	evChan := make(chan *github_prov.Event, 1)
-	defer close(evChan)
+		{
+			testName: "checkrun-success",
+			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
+				return &github_prov.Event{
+					Event: newCheckRunEvent("success", branchNames...),
+				}
+			},
+		},
 
-	mockctrl := gomock.NewController(t)
-	ghClient := mocks.NewMockGithubClient(mockctrl)
+		{
+			testName: "checkrun-neutral",
+			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
+				return &github_prov.Event{
+					Event: newCheckRunEvent("success", branchNames...),
+				}
+			},
+		},
 
-	pr1, err := NewPullRequest(1, "pr_branch1", "", "", "")
-	require.NoError(t, err)
+		{
+			testName: "checkrun-neutral",
+			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
+				return &github_prov.Event{
+					Event: newCheckRunEvent("success", branchNames...),
+				}
+			},
+		},
+	}
 
-	pr2, err := NewPullRequest(2, "pr_branch2", "", "", "")
-	require.NoError(t, err)
+	for _, tc := range tcs {
+		t.Run(tc.testName, func(t *testing.T) {
+			t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
+			evChan := make(chan *github_prov.Event, 1)
+			defer close(evChan)
 
-	pr3, err := NewPullRequest(3, "pr_branch3", "", "", "")
-	require.NoError(t, err)
+			mockctrl := gomock.NewController(t)
+			ghClient := mocks.NewMockGithubClient(mockctrl)
 
-	ghClient.
-		EXPECT().
-		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-		DoAndReturn(func(_ context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
-			return false, nil
-		}).
-		MinTimes(3)
+			pr1, err := NewPullRequest(1, "pr_branch1", "", "", "")
+			require.NoError(t, err)
 
-	mockCombindedStatus(ghClient, "failed", time.Now(), nil).Times(3)
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 2).AnyTimes()
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 3).AnyTimes()
+			pr2, err := NewPullRequest(2, "pr_branch2", "", "", "")
+			require.NoError(t, err)
 
-	retryer := goordinator.NewRetryer()
-	autoupdater := NewAutoupdater(
-		ghClient,
-		evChan,
-		retryer,
-		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
-		true,
-		nil,
-	)
+			pr3, err := NewPullRequest(3, "pr_branch3", "", "", "")
+			require.NoError(t, err)
 
-	autoupdater.Start()
-	t.Cleanup(autoupdater.Stop)
+			ghClient.
+				EXPECT().
+				UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
+				DoAndReturn(func(_ context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
+					return false, nil
+				}).
+				MinTimes(3)
 
-	baseBranch1, err := NewBaseBranch(repoOwner, repo, "main")
-	require.NoError(t, err)
+			mockCombindedStatus(ghClient, "failed", time.Now(), nil).Times(3)
+			mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
+			mockSuccessfulPullRequestIsApprovedCall(ghClient, 2).AnyTimes()
+			mockSuccessfulPullRequestIsApprovedCall(ghClient, 3).AnyTimes()
 
-	baseBranch2, err := NewBaseBranch(repoOwner, repo, "develop")
-	require.NoError(t, err)
+			retryer := goordinator.NewRetryer()
+			autoupdater := NewAutoupdater(
+				ghClient,
+				evChan,
+				retryer,
+				[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
+				true,
+				nil,
+			)
 
-	err = autoupdater.Enqueue(context.Background(), baseBranch1, pr1)
-	require.NoError(t, err)
+			autoupdater.Start()
+			t.Cleanup(autoupdater.Stop)
 
-	err = autoupdater.Enqueue(context.Background(), baseBranch1, pr2)
-	require.NoError(t, err)
+			baseBranch1, err := NewBaseBranch(repoOwner, repo, "main")
+			require.NoError(t, err)
 
-	err = autoupdater.Enqueue(context.Background(), baseBranch2, pr3)
-	require.NoError(t, err)
+			baseBranch2, err := NewBaseBranch(repoOwner, repo, "develop")
+			require.NoError(t, err)
 
-	queueBaseBranch1 := autoupdater.getQueue(baseBranch1.BranchID)
-	require.NotNil(t, queueBaseBranch1)
+			err = autoupdater.Enqueue(context.Background(), baseBranch1, pr1)
+			require.NoError(t, err)
 
-	waitForSuspendQueueLen(t, queueBaseBranch1, 2)
-	assert.Equal(t, 0, queueBaseBranch1.activeLen(), "active queue")
-	assert.Equal(t, 2, queueBaseBranch1.suspendedLen(), "suspend queue")
+			err = autoupdater.Enqueue(context.Background(), baseBranch1, pr2)
+			require.NoError(t, err)
 
-	queueBaseBranch2 := autoupdater.getQueue(baseBranch2.BranchID)
-	require.NotNil(t, queueBaseBranch2)
+			err = autoupdater.Enqueue(context.Background(), baseBranch2, pr3)
+			require.NoError(t, err)
 
-	waitForSuspendQueueLen(t, queueBaseBranch2, 1)
+			queueBaseBranch1 := autoupdater.getQueue(baseBranch1.BranchID)
+			require.NotNil(t, queueBaseBranch1)
 
-	assert.Equal(t, 0, queueBaseBranch2.activeLen(), "active queue")
-	assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")
+			waitForSuspendQueueLen(t, queueBaseBranch1, 2)
+			assert.Equal(t, 0, queueBaseBranch1.activeLen(), "active queue")
+			assert.Equal(t, 2, queueBaseBranch1.suspendedLen(), "suspend queue")
 
-	mockCombindedStatus(ghClient, "success", time.Now(), nil).MinTimes(3)
-	evChan <- &github_prov.Event{Event: newStatusEvent("success", pr1.Branch, pr2.Branch, pr3.Branch)}
+			queueBaseBranch2 := autoupdater.getQueue(baseBranch2.BranchID)
+			require.NotNil(t, queueBaseBranch2)
 
-	waitForSuspendQueueLen(t, queueBaseBranch1, 0)
-	assert.Equal(t, 2, queueBaseBranch1.activeLen(), "active queue")
-	assert.Equal(t, 0, queueBaseBranch1.suspendedLen(), "suspend queue")
+			waitForSuspendQueueLen(t, queueBaseBranch2, 1)
 
-	waitForSuspendQueueLen(t, queueBaseBranch2, 0)
+			assert.Equal(t, 0, queueBaseBranch2.activeLen(), "active queue")
+			assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")
 
-	assert.Equal(t, 1, queueBaseBranch2.activeLen(), "active queue")
-	assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
+			mockCombindedStatus(ghClient, "success", time.Now(), nil).MinTimes(3)
+			evChan <- tc.newResumeEventFn(pr1.Branch, pr2.Branch, pr3.Branch)
+
+			waitForSuspendQueueLen(t, queueBaseBranch1, 0)
+			assert.Equal(t, 2, queueBaseBranch1.activeLen(), "active queue")
+			assert.Equal(t, 0, queueBaseBranch1.suspendedLen(), "suspend queue")
+
+			waitForSuspendQueueLen(t, queueBaseBranch2, 0)
+
+			assert.Equal(t, 1, queueBaseBranch2.activeLen(), "active queue")
+			assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
+		})
+	}
 }
 
 func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
+	tcs := []struct {
+		testName         string
+		newResumeEventFn func(branchNames ...string) *github_prov.Event
+	}{
+		{
+			testName: "failure-status",
+			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
+				return &github_prov.Event{Event: newStatusEvent("failure", branchNames...)}
+			},
+		},
 
-	evChan := make(chan *github_prov.Event, 1)
-	defer close(evChan)
-
-	mockctrl := gomock.NewController(t)
-	ghClient := mocks.NewMockGithubClient(mockctrl)
-
-	pr1, err := NewPullRequest(1, "pr_branch1", "", "", "")
-	require.NoError(t, err)
-
-	pr2, err := NewPullRequest(2, "pr_branch2", "", "", "")
-	require.NoError(t, err)
-
-	pr3, err := NewPullRequest(3, "pr_branch3", "", "", "")
-	require.NoError(t, err)
-
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 2).AnyTimes()
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 3).AnyTimes()
-
-	ghClient.
-		EXPECT().
-		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-		DoAndReturn(func(_ context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
-			return false, nil
-		}).
-		AnyTimes()
-
-	var failChecks atomic.Bool
-	ghClient.EXPECT().
-		CombinedStatus(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-		DoAndReturn(func(_ context.Context, owner, repo, ref string) (string, time.Time, error) {
-			if failChecks.Load() {
-				if ref == pr1.Branch || ref == pr3.Branch {
-					t.Logf("FAILED, PR BRANCH: %q\n", ref)
-					return "failed", time.Now(), nil
+		{
+			testName: "checkrun-failure",
+			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
+				return &github_prov.Event{
+					Event: newCheckRunEvent("failure", branchNames...),
 				}
-			}
-			t.Logf("SUCCESS, PR BRANCH: %q\n", ref)
-			return "success", time.Now(), nil
-		}).MinTimes(4)
+			},
+		},
 
-	retryer := goordinator.NewRetryer()
-	autoupdater := NewAutoupdater(
-		ghClient,
-		evChan,
-		retryer,
-		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
-		true,
-		nil,
-	)
+		{
+			testName: "checkrun-cancelled",
+			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
+				return &github_prov.Event{
+					Event: newCheckRunEvent("failure", branchNames...),
+				}
+			},
+		},
 
-	autoupdater.Start()
-	t.Cleanup(autoupdater.Stop)
+		{
+			testName: "checkrun-action_required",
+			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
+				return &github_prov.Event{
+					Event: newCheckRunEvent("failure", branchNames...),
+				}
+			},
+		},
+	}
 
-	baseBranch1, err := NewBaseBranch(repoOwner, repo, "main")
-	require.NoError(t, err)
+	for _, tc := range tcs {
+		t.Run(tc.testName, func(t *testing.T) {
+			t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
 
-	baseBranch2, err := NewBaseBranch(repoOwner, repo, "develop")
-	require.NoError(t, err)
+			evChan := make(chan *github_prov.Event, 1)
+			defer close(evChan)
 
-	err = autoupdater.Enqueue(context.Background(), baseBranch1, pr1)
-	require.NoError(t, err)
+			mockctrl := gomock.NewController(t)
+			ghClient := mocks.NewMockGithubClient(mockctrl)
 
-	err = autoupdater.Enqueue(context.Background(), baseBranch1, pr2)
-	require.NoError(t, err)
+			pr1, err := NewPullRequest(1, "pr_branch1", "", "", "")
+			require.NoError(t, err)
 
-	err = autoupdater.Enqueue(context.Background(), baseBranch2, pr3)
-	require.NoError(t, err)
+			pr2, err := NewPullRequest(2, "pr_branch2", "", "", "")
+			require.NoError(t, err)
 
-	queueBaseBranch1 := autoupdater.getQueue(baseBranch1.BranchID)
-	require.NotNil(t, queueBaseBranch1)
+			pr3, err := NewPullRequest(3, "pr_branch3", "", "", "")
+			require.NoError(t, err)
 
-	waitForActiveQueueLen(t, queueBaseBranch1, 2)
-	assert.Equal(t, 0, queueBaseBranch1.suspendedLen(), "suspend queue")
+			mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
+			mockSuccessfulPullRequestIsApprovedCall(ghClient, 2).AnyTimes()
+			mockSuccessfulPullRequestIsApprovedCall(ghClient, 3).AnyTimes()
 
-	queueBaseBranch2 := autoupdater.getQueue(baseBranch2.BranchID)
-	require.NotNil(t, queueBaseBranch2)
+			ghClient.
+				EXPECT().
+				UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
+				DoAndReturn(func(_ context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
+					return false, nil
+				}).
+				AnyTimes()
 
-	waitForActiveQueueLen(t, queueBaseBranch2, 1)
-	assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
+			var failChecks atomic.Bool
+			ghClient.EXPECT().
+				CombinedStatus(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
+				DoAndReturn(func(_ context.Context, owner, repo, ref string) (string, time.Time, error) {
+					if failChecks.Load() {
+						if ref == pr1.Branch || ref == pr3.Branch {
+							t.Logf("FAILED, PR BRANCH: %q\n", ref)
+							return "failed", time.Now(), nil
+						}
+					}
+					t.Logf("SUCCESS, PR BRANCH: %q\n", ref)
+					return "success", time.Now(), nil
+				}).MinTimes(4)
 
-	failChecks.Store(true)
-	evChan <- &github_prov.Event{Event: newStatusEvent("failure", pr1.Branch, pr2.Branch, pr3.Branch)}
+			retryer := goordinator.NewRetryer()
+			autoupdater := NewAutoupdater(
+				ghClient,
+				evChan,
+				retryer,
+				[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
+				true,
+				nil,
+			)
 
-	waitForSuspendQueueLen(t, queueBaseBranch1, 1)
-	assert.Equal(t, 1, queueBaseBranch1.activeLen(), "active queue")
+			autoupdater.Start()
+			t.Cleanup(autoupdater.Stop)
 
-	waitForActiveQueueLen(t, queueBaseBranch2, 0)
-	assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")
+			baseBranch1, err := NewBaseBranch(repoOwner, repo, "main")
+			require.NoError(t, err)
+
+			baseBranch2, err := NewBaseBranch(repoOwner, repo, "develop")
+			require.NoError(t, err)
+
+			err = autoupdater.Enqueue(context.Background(), baseBranch1, pr1)
+			require.NoError(t, err)
+
+			err = autoupdater.Enqueue(context.Background(), baseBranch1, pr2)
+			require.NoError(t, err)
+
+			err = autoupdater.Enqueue(context.Background(), baseBranch2, pr3)
+			require.NoError(t, err)
+
+			queueBaseBranch1 := autoupdater.getQueue(baseBranch1.BranchID)
+			require.NotNil(t, queueBaseBranch1)
+
+			waitForActiveQueueLen(t, queueBaseBranch1, 2)
+			assert.Equal(t, 0, queueBaseBranch1.suspendedLen(), "suspend queue")
+
+			queueBaseBranch2 := autoupdater.getQueue(baseBranch2.BranchID)
+			require.NotNil(t, queueBaseBranch2)
+
+			waitForActiveQueueLen(t, queueBaseBranch2, 1)
+			assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
+
+			failChecks.Store(true)
+			evChan <- tc.newResumeEventFn(pr1.Branch, pr2.Branch, pr3.Branch)
+
+			waitForSuspendQueueLen(t, queueBaseBranch1, 1)
+			assert.Equal(t, 1, queueBaseBranch1.activeLen(), "active queue")
+
+			waitForActiveQueueLen(t, queueBaseBranch2, 0)
+			assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")
+		})
+	}
 }
 
 func TestPRIsSuspendedWhenStatusIsStuck(t *testing.T) {
