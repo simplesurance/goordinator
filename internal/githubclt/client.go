@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -112,7 +114,7 @@ func (clt *Client) ReadyForMergeStatus(ctx context.Context, owner, repo string, 
 
 	err := clt.graphQLClt.Query(ctx, &q, vars)
 	if err != nil {
-		return nil, err
+		return nil, clt.wrapGraphQLRetryableErrors(err)
 	}
 
 	return &PRStatus{
@@ -390,6 +392,32 @@ func (clt *Client) wrapRetryableErrors(err error) error {
 		if v.Response.StatusCode >= 500 && v.Response.StatusCode < 600 {
 			return goorderr.NewRetryableAnytimeError(err)
 		}
+	}
+
+	return err
+}
+
+var graphQlHttpStatusErrRe = regexp.MustCompile(`^non-200 OK status code: ([0-9]+) .*`)
+
+func (clt *Client) wrapGraphQLRetryableErrors(err error) error {
+	matches := graphQlHttpStatusErrRe.FindStringSubmatch(err.Error())
+	if len(matches) != 2 {
+		return nil
+	}
+
+	errcode, atoiErr := strconv.Atoi(matches[1])
+	if atoiErr != nil {
+		clt.logger.Info(
+			"parsing http code from error string failed",
+			zap.Error(atoiErr),
+			zap.String("error_string", err.Error()),
+			zap.String("http_errcode", matches[1]),
+		)
+		return err
+	}
+
+	if errcode >= 500 && errcode < 600 {
+		return goorderr.NewRetryableAnytimeError(err)
 	}
 
 	return err
