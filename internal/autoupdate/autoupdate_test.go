@@ -627,7 +627,7 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 			testName: "checkrun-neutral",
 			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
 				return &github_prov.Event{
-					Event: newCheckRunEvent("success", branchNames...),
+					Event: newCheckRunEvent("neutral", branchNames...),
 				}
 			},
 		},
@@ -637,6 +637,15 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
 				return &github_prov.Event{
 					Event: newCheckRunEvent("success", branchNames...),
+				}
+			},
+		},
+
+		{
+			testName: "checkrun-conclusion-empty",
+			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
+				return &github_prov.Event{
+					Event: newCheckRunEvent("", branchNames...),
 				}
 			},
 		},
