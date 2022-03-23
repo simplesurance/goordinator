@@ -882,11 +882,11 @@ func (a *Autoupdater) processCheckRunEvent(ctx context.Context, logger *zap.Logg
 			)
 		}
 
-	case "neutral", "success", "skipped":
+	case "", "neutral", "success", "skipped":
 		a.ResumeIfStatusPositive(ctx, owner, repo, branches)
 
 	default: // stale event is ignored
-		logger.Debug("ignoring event with irrelevant or unsupported check run conclusion",
+		logger.Info("ignoring event with irrelevant or unsupported check run conclusion",
 			logEventEventIgnored,
 		)
 	}

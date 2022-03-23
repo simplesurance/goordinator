@@ -660,7 +660,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 			logfields.Event("pr_ready_to_merge"),
 		)
 
-	case githubclt.StatusStatePending, githubclt.StatusStateExpected:
+	case "", githubclt.StatusStatePending, githubclt.StatusStateExpected:
 		logger.Info(
 			"pull request is uptodate, approved and status checks are pending",
 			logfields.Event("pr_status_pending"),
@@ -836,7 +836,7 @@ func (q *queue) resumeIfPRMergeStatusPositive(ctx context.Context, logger *zap.L
 	}
 
 	switch status.StatusCheckRollupState {
-	case githubclt.StatusStateExpected, githubclt.StatusStatePending, githubclt.StatusStateSuccess:
+	case "", githubclt.StatusStateExpected, githubclt.StatusStatePending, githubclt.StatusStateSuccess:
 		if err := q.Resume(pr.Number); err != nil {
 			return fmt.Errorf("resuming updates failed: %w", err)
 		}
