@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/simplesurance/goordinator/internal/autoupdate/routines"
+	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
@@ -65,6 +66,8 @@ type queue struct {
 	// last action() run, when action() has not be run yet it contains the
 	// zero Time
 	lastRun atomic.Value // stored type: time.Time
+
+	updatePRRuns uint64 // atomic must be accessed via atomic functions
 
 	staleTimeout time.Duration
 
@@ -126,6 +129,14 @@ func (q *queue) setLastRun(t time.Time) {
 
 func (q *queue) getLastRun() time.Time {
 	return q.lastRun.Load().(time.Time)
+}
+
+func (q *queue) getUpdateRuns() uint64 {
+	return atomic.LoadUint64(&q.updatePRRuns)
+}
+
+func (q *queue) incUpdateRuns() {
+	atomic.AddUint64(&q.updatePRRuns, 1)
 }
 
 // cancelActionForPR cancels a running update operation for the given pull
@@ -449,7 +460,7 @@ func (q *queue) isPRStale(pr *PullRequest) bool {
 // If updating is not possible because a merge-conflict exist or another error
 // happened, a comment is posted to the pull request and updating the
 // pull request is suspended.
-// If it is already uptodate, it's GitHub combined status check is retrieved.
+// If it is already uptodate, it's GitHub check and status state is retrieved.
 // If it is in a failed or error state, the pull request is suspended.
 // If the status is successful, nothing is done and the pull request is kept as
 // first element in the active queue.
@@ -473,26 +484,34 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	ctx, cancelFunc := context.WithTimeout(ctx, retryTimeout)
 	defer cancelFunc()
 
-	isApproved, err := q.pullRequestIsApproved(ctx, pr)
+	defer q.incUpdateRuns()
+
+	status, err := q.prReadyForMergeStatus(ctx, pr)
 	if err != nil {
 		logger.Error(
-			"checking if pr is approved failed",
-			logfields.Event("approval_state_check_failed"),
+			"checking if pr merge status failed",
+			logfields.Event("pr_merge_status_check_failed"),
 			zap.Error(err),
 		)
 		return
 	}
 
-	if !isApproved {
+	logger = logger.With(
+		logfields.ReviewDecision(status.ReviewDecision),
+		logfields.StatusCheckRollupState(status.StatusCheckRollupState),
+	)
+	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
+
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
-				"suspending PR because it is not approved , failed",
+				"suspending PR because it is not approved, failed",
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
 
 			return
 		}
+
 		logger.Info(
 			"updates suspended, pr is not approved",
 			logFieldReason("pr_not_approved"),
@@ -502,6 +521,8 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 		return
 	}
+
+	logger.Debug("pr is approved and status checks are successful")
 
 	baseBranchUpdateErr := q.retryer.Run(ctx, func(ctx context.Context) error {
 		var err error
@@ -603,30 +624,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		return
 	}
 
-	state, _, err := q.prCombinedStatus(ctx, pr)
-	if err != nil {
-		if err := q.Suspend(pr.Number); err != nil {
-			logger.Error(
-				"suspending PR after retrieving its status failed, failed",
-				logfields.Event("suspending_pr_updates_failed"),
-				zap.Error(err),
-			)
-			return
-		}
-
-		logger.Error(
-			"updates suspended, retrieving combined check status failed",
-			logEventUpdatesSuspended,
-			logFieldReason("retrieving_combined_check_status_failed"),
-			zap.Error(baseBranchUpdateErr),
-		)
-
-		return
-	}
-
-	logger = logger.With(zap.String("github.pull_request.combined_status", state))
-	logger.Debug("retrieved combined pr status")
-
 	if q.isPRStale(pr) {
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
@@ -654,20 +651,22 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		zap.Duration("stale_timeout", q.staleTimeout),
 	)
 
-	switch state {
-	case "success":
+	logger = logger.With(logfields.StatusCheckRollupState(status.StatusCheckRollupState))
+
+	switch status.StatusCheckRollupState {
+	case githubclt.StatusStateSuccess:
 		logger.Info(
 			"pull request is uptodate, approved and status checks are successful",
 			logfields.Event("pr_ready_to_merge"),
 		)
 
-	case "pending":
+	case githubclt.StatusStatePending, githubclt.StatusStateExpected:
 		logger.Info(
 			"pull request is uptodate, approved and status checks are pending",
 			logfields.Event("pr_status_pending"),
 		)
 
-	case "failure", "error":
+	case githubclt.StatusStateError, githubclt.StatusStateFailure:
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
 				"suspending PR because it's PR status is negative, failed",
@@ -681,19 +680,18 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 			"updates suspended, status check is negative",
 			logFieldReason("status_check_negative"),
 			logEventUpdatesSuspended,
-			logfields.StatusState(state),
 			zap.Error(err),
 		)
 
 	default:
 		logger.Warn(
-			"pull request combined status has unexpected value, suspending autoupdates for PR",
-			logfields.Event("pr_combined_status_unexpected"),
+			"pull request status check rollup state has unexpected value, suspending autoupdates for PR",
+			logfields.Event("pr_status_check_rollup_state_invalid"),
 		)
 
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
-				"suspending PR because it's PR status has invalid value, failed",
+				"suspending PR because it's status check rollup state has an invalid value, failed",
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
@@ -702,22 +700,20 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		}
 
 		logger.Info(
-			"updates suspended, status check value is invalid",
-			logFieldReason("status_check_invalid"),
+			"updates suspended, status check rollup value invalid",
+			logFieldReason("status_check_rollup_state_invalid"),
 			logEventUpdatesSuspended,
-			logfields.StatusState(state),
 			zap.Error(err),
 		)
 	}
 }
 
-// prCombinedStatus runs GitHubClient.CombinedStatus() and retries if it failed
-// with a retryable error.
+// prReadyForMergeStatus runs GitHubClient.ReadyForMergeStatus() and retries if
+// it failed with a retryable error.
 // The method blocks until the request was successful, a non-retryable error
 // happened or the context expired.
-func (q *queue) prCombinedStatus(ctx context.Context, pr *PullRequest) (string, time.Time, error) {
-	var state string
-	var lastChange time.Time
+func (q *queue) prReadyForMergeStatus(ctx context.Context, pr *PullRequest) (*githubclt.PRStatus, error) {
+	var status *githubclt.PRStatus
 
 	loggingFields := pr.LogFields
 
@@ -727,35 +723,16 @@ func (q *queue) prCombinedStatus(ctx context.Context, pr *PullRequest) (string, 
 	err := q.retryer.Run(ctx, func(ctx context.Context) error {
 		var err error
 
-		state, lastChange, err = q.ghClient.CombinedStatus(
-			ctx,
-			q.baseBranch.RepositoryOwner,
-			q.baseBranch.Repository,
-			pr.Branch,
-		)
-		return err
-	}, loggingFields)
-
-	return state, lastChange, err
-}
-
-// pullRequestIsApproved runs GitHubClient.PullRequestIsApproved and retries if
-// it failed with a retryable error.
-func (q *queue) pullRequestIsApproved(ctx context.Context, pr *PullRequest) (bool, error) {
-	var isApproved bool
-
-	err := q.retryer.Run(ctx, func(ctx context.Context) error {
-		var err error
-		isApproved, err = q.ghClient.PullRequestIsApproved(
+		status, err = q.ghClient.ReadyForMergeStatus(
 			ctx,
 			q.baseBranch.RepositoryOwner,
 			q.baseBranch.Repository,
 			pr.Number,
 		)
 		return err
-	}, pr.LogFields)
+	}, loggingFields)
 
-	return isApproved, err
+	return status, err
 }
 
 func (q *queue) prsByBranch(branchNames map[string]struct{}) (
@@ -837,41 +814,53 @@ func (q *queue) _suspendedPRsbyBranch(branchSet map[string]struct{}) (
 	return result, notFound
 }
 
-func (q *queue) resumeIfPRStatusPositive(ctx context.Context, pr *PullRequest) (bool, error) {
+func (q *queue) resumeIfPRMergeStatusPositive(ctx context.Context, logger *zap.Logger, pr *PullRequest) error {
 	if _, exist := q.suspended[pr.Number]; !exist {
-		return false, ErrNotFound
+		return ErrNotFound
 	}
 
-	isApproved, err := q.pullRequestIsApproved(ctx, pr)
+	status, err := q.prReadyForMergeStatus(ctx, pr)
 	if err != nil {
-		return false, fmt.Errorf("retrieving approval status failed: %w", err)
+		return fmt.Errorf("retrieving ready for merge status failed: %w", err)
 	}
 
-	status, _, err := q.prCombinedStatus(ctx, pr)
-	if err != nil {
-		return false, fmt.Errorf("retrieving combined check status failed: %w", err)
+	logger.Debug(
+		"retrieved ready-to-merge-status",
+		logfields.ReviewDecision(status.ReviewDecision),
+		logfields.StatusCheckRollupState(status.StatusCheckRollupState),
+	)
+
+	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
+		logger.Info("updates for prs are not resumed, reviewdecision is not positive")
+		return nil
 	}
 
-	if status != "success" && status != "pending" {
-		return false, nil
+	switch status.StatusCheckRollupState {
+	case githubclt.StatusStateExpected, githubclt.StatusStatePending, githubclt.StatusStateSuccess:
+		if err := q.Resume(pr.Number); err != nil {
+			return fmt.Errorf("resuming updates failed: %w", err)
+		}
+
+		logger.Info(
+			"updates resumed, pr is approved and status check rollup is positive",
+			logEventUpdatesResumed,
+		)
+
+		return nil
+
+	default:
+		logger.Info("updates for prs are not resumed, status check rollup state is unsuccessful")
+		return nil
 	}
-
-	if !isApproved {
-		return false, nil
-	}
-
-	if err := q.Resume(pr.Number); err != nil {
-		return false, fmt.Errorf("resuming updates failed: %w", err)
-	}
-
-	return true, nil
-
 }
 
 // ScheduleResumePRIfStatusPositive schedules resuming autoupdates for a pull
-// request when it's combined check status is success or pending and it's review status is approved.
+// request when it's approved and it's check and status state is success,
+// pending  or expected and it's review status is approved.
 func (q *queue) ScheduleResumePRIfStatusPositive(ctx context.Context, pr *PullRequest) {
 	q.actionPool.Queue(func() {
+		logger := q.logger.With(pr.LogFields...)
+
 		ctx, cancelFunc := context.WithCancel(ctx)
 		defer cancelFunc()
 
@@ -880,23 +869,13 @@ func (q *queue) ScheduleResumePRIfStatusPositive(ctx context.Context, pr *PullRe
 
 		q.setExecuting(&runningTask{pr: pr.Number, cancelFunc: cancelFunc})
 
-		resumed, err := q.resumeIfPRStatusPositive(ctx, pr)
+		err := q.resumeIfPRMergeStatusPositive(ctx, logger, pr)
 		if err != nil && !errors.Is(err, ErrNotFound) {
 			q.logger.With(pr.LogFields...).Info(
-				"resuming updates after retrieving positive pr status failed",
+				"resuming updates if pr merge status positive failed",
 				zap.Error(err),
 			)
 		}
-
-		if !resumed {
-			return
-		}
-
-		q.logger.With(pr.LogFields...).Info(
-			"updates resumed, combined check status is positive",
-			logEventUpdatesResumed,
-			logFieldReason("status_check_positive"),
-		)
 	})
 
 	q.logger.With(pr.LogFields...).

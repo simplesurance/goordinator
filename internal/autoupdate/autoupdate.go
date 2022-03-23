@@ -27,10 +27,9 @@ const defPeriodicTriggerInterval = 30 * time.Minute
 // autoupdate implementation.
 type GithubClient interface {
 	UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, error)
-	CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error)
 	CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error
 	ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator
-	PullRequestIsApproved(ctx context.Context, owner, repo string, prNumber int) (bool, error)
+	ReadyForMergeStatus(ctx context.Context, owner, repo string, prNumber int) (*githubclt.PRStatus, error)
 }
 
 // Retryer defines methods for running GithubClient operations repeately if
@@ -231,9 +230,9 @@ func (a *Autoupdater) eventLoop() {
 //  - Resume updates for a suspended pull request on:
 //    - PullRequestEvent synchronize for the pr branch
 //    - PushEvent for it's base-branch
-//    - StatusEvent with success state and the combined status for PullRequest is successful
+//    - StatusEvent with success state and the StatusCheckRollup is successful and ReviewDecision approved.
 //    - CheckRunEvent with a neutral, success or skipped check conclusion and
-//      the combined status for PullRequest is successful
+//      the StatusCheckRollup is successful and ReviewDecision approved.
 //    - PullRequestReviewEvent with action submitted and state approved
 //
 //  - Trigger update with base-branch on:

@@ -73,15 +73,32 @@ func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, baseBran
 	return cmp.GetBehindBy() > 0, nil
 }
 
+// These constants represents the values from Github's GraphQL
+// PullRequestReviewDecision enum.
+// Reference: https://docs.github.com/en/graphql/reference/enums#pullrequestreviewdecision
 const (
-	StatusError   = "error"
-	StatusFailure = "failure"
-	StatusPending = "pending"
-	StatusSuccess = "success"
+	ReviewDecisionApproved         = "APPROVED"
+	ReviewDecisionChangesRequested = "CHANGES_REQUESTED"
+	ReviewDecisionReviewRequired   = "REVIEW_REQUIRED"
 )
 
+// These constants represents the values from Github's GraphQL
+// StatusState enum.
+// Reference: https://docs.github.com/en/graphql/reference/enums#statusstate
+const (
+	StatusStateError    = "ERROR"
+	StatusStateExpected = "EXPECTED"
+	StatusStateFailure  = "FAILURE"
+	StatusStatePending  = "PENDING"
+	StatusStateSuccess  = "SUCCESS"
+)
+
+// PRStatus contains fields that describe if a Pull-Request is ready to be
+// merged.
 type PRStatus struct {
-	ReviewDecision         string
+	// ReviewDecision should be one of the ReviewDecision* constants.
+	ReviewDecision string
+	// StatusCheckRollupState should be one of StatusState* constants.
 	StatusCheckRollupState string
 }
 
@@ -121,30 +138,6 @@ func (clt *Client) ReadyForMergeStatus(ctx context.Context, owner, repo string, 
 		ReviewDecision:         q.Repository.PullRequest.ReviewDecision,
 		StatusCheckRollupState: q.Repository.PullRequest.Commits.Nodes[0].Commit.StatusCheckRollup.State,
 	}, nil
-}
-
-// CombinedStatus returns the combined check status and the last time the status changed for the ref.
-func (clt *Client) CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error) {
-	var lastChange time.Time
-
-	status, _, err := clt.restClt.Repositories.GetCombinedStatus(ctx, owner, repo, ref, nil)
-	if err != nil {
-		return "", lastChange, clt.wrapRetryableErrors(err)
-	}
-
-	for _, s := range status.Statuses {
-		if s.GetUpdatedAt().After(lastChange) {
-			lastChange = s.GetUpdatedAt()
-		}
-	}
-
-	switch s := status.GetState(); s {
-	case StatusSuccess, StatusPending, StatusFailure:
-		return s, lastChange, nil
-
-	default:
-		return "", lastChange, fmt.Errorf("github status api returned unsupported status: %q", s)
-	}
 }
 
 // PullRequestIsUptodateWithBase returns true if the pull request is open and
@@ -349,32 +342,6 @@ func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sor
 	}
 }
 
-// PullRequestIsApproved returns true if the combined review status of a PR is approved.
-func (clt *Client) PullRequestIsApproved(ctx context.Context, owner, repo string, prNumber int) (bool, error) {
-	var q struct {
-		Repository struct {
-			PullRequest struct {
-				ReviewDecision string
-			} `graphql:"pullRequest(number: $number)"`
-		} `graphql:"repository(owner: $owner, name: $name)"`
-	}
-	vars := map[string]interface{}{
-		"owner":  githubv4.String(owner),
-		"name":   githubv4.String(repo),
-		"number": githubv4.Int(prNumber),
-	}
-
-	err := clt.graphQLClt.Query(ctx, &q, vars)
-	if err != nil {
-		return false, err
-	}
-
-	reviewDecision := q.Repository.PullRequest.ReviewDecision
-
-	// nil means repository is configured to not require reviews
-	return reviewDecision == "APPROVED" || reviewDecision == "nil", nil
-}
-
 func (clt *Client) wrapRetryableErrors(err error) error {
 	switch v := err.(type) {
 	case *github.RateLimitError:
@@ -397,10 +364,10 @@ func (clt *Client) wrapRetryableErrors(err error) error {
 	return err
 }
 
-var graphQlHttpStatusErrRe = regexp.MustCompile(`^non-200 OK status code: ([0-9]+) .*`)
+var graphQlHTTPStatusErrRe = regexp.MustCompile(`^non-200 OK status code: ([0-9]+) .*`)
 
 func (clt *Client) wrapGraphQLRetryableErrors(err error) error {
-	matches := graphQlHttpStatusErrRe.FindStringSubmatch(err.Error())
+	matches := graphQlHTTPStatusErrRe.FindStringSubmatch(err.Error())
 	if len(matches) != 2 {
 		return nil
 	}

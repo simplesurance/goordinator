@@ -7,7 +7,6 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
-	time "time"
 
 	gomock "github.com/golang/mock/gomock"
 	githubclt "github.com/simplesurance/goordinator/internal/githubclt"
@@ -35,22 +34,6 @@ func NewMockGithubClient(ctrl *gomock.Controller) *MockGithubClient {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockGithubClient) EXPECT() *MockGithubClientMockRecorder {
 	return m.recorder
-}
-
-// CombinedStatus mocks base method.
-func (m *MockGithubClient) CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CombinedStatus", ctx, owner, repo, ref)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(time.Time)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// CombinedStatus indicates an expected call of CombinedStatus.
-func (mr *MockGithubClientMockRecorder) CombinedStatus(ctx, owner, repo, ref interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CombinedStatus", reflect.TypeOf((*MockGithubClient)(nil).CombinedStatus), ctx, owner, repo, ref)
 }
 
 // CreateIssueComment mocks base method.
@@ -81,19 +64,19 @@ func (mr *MockGithubClientMockRecorder) ListPullRequests(ctx, owner, repo, state
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPullRequests", reflect.TypeOf((*MockGithubClient)(nil).ListPullRequests), ctx, owner, repo, state, sort, sortDirection)
 }
 
-// PullRequestIsApproved mocks base method.
-func (m *MockGithubClient) PullRequestIsApproved(ctx context.Context, owner, repo string, prNumber int) (bool, error) {
+// ReadyForMergeStatus mocks base method.
+func (m *MockGithubClient) ReadyForMergeStatus(ctx context.Context, owner, repo string, prNumber int) (*githubclt.PRStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PullRequestIsApproved", ctx, owner, repo, prNumber)
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "ReadyForMergeStatus", ctx, owner, repo, prNumber)
+	ret0, _ := ret[0].(*githubclt.PRStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PullRequestIsApproved indicates an expected call of PullRequestIsApproved.
-func (mr *MockGithubClientMockRecorder) PullRequestIsApproved(ctx, owner, repo, prNumber interface{}) *gomock.Call {
+// ReadyForMergeStatus indicates an expected call of ReadyForMergeStatus.
+func (mr *MockGithubClientMockRecorder) ReadyForMergeStatus(ctx, owner, repo, prNumber interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullRequestIsApproved", reflect.TypeOf((*MockGithubClient)(nil).PullRequestIsApproved), ctx, owner, repo, prNumber)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadyForMergeStatus", reflect.TypeOf((*MockGithubClient)(nil).ReadyForMergeStatus), ctx, owner, repo, prNumber)
 }
 
 // UpdateBranch mocks base method.

@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/simplesurance/goordinator/internal/autoupdate/mocks"
+	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/goordinator"
 )
 
@@ -30,7 +31,10 @@ func TestUpdatePR_DoesNotCallBaseBranchUpdateIfPRIsNotApproved(t *testing.T) {
 	_, added := q.active.EnqueueIfNotExist(pr.Number, pr)
 	require.True(t, added)
 
-	mockPullRequestIsApprovedCall(ghClient, pr.Number, false).Times(1)
+	mockReadyForMergeStatus(
+		ghClient, pr.Number,
+		githubclt.ReviewDecisionChangesRequested, githubclt.StatusStatePending,
+	).AnyTimes()
 	ghClient.EXPECT().UpdateBranch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	q.updatePR(context.Background(), pr)

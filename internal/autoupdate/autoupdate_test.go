@@ -11,12 +11,12 @@ import (
 	"github.com/google/go-github/v40/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/simplesurance/goordinator/internal/autoupdate/mocks"
+	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/goordinator"
 	github_prov "github.com/simplesurance/goordinator/internal/provider/github"
 )
@@ -98,25 +98,29 @@ func mockSuccesssfulCreateIssueCommentCall(clt *mocks.MockGithubClient, expected
 		})
 }
 
-func mockSuccessfulPullRequestIsApprovedCall(clt *mocks.MockGithubClient, prNumber int) *gomock.Call {
-	return mockPullRequestIsApprovedCall(clt, prNumber, true)
+type mergeStatusMock struct {
+	githubclt.PRStatus
+	*gomock.Call
 }
 
-func mockPullRequestIsApprovedCall(clt *mocks.MockGithubClient, prNumber int, result bool) *gomock.Call {
-	return clt.
+func mockReadyForMergeStatus(clt *mocks.MockGithubClient, prNumber int, reviewDecision, checkState string) *mergeStatusMock {
+	res := mergeStatusMock{
+		PRStatus: githubclt.PRStatus{
+			ReviewDecision:         reviewDecision,
+			StatusCheckRollupState: checkState,
+		},
+	}
+
+	mockCall := clt.
 		EXPECT().
-		PullRequestIsApproved(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(prNumber)).
-		DoAndReturn(func(_ context.Context, owner, repo string, prNumber int) (bool, error) {
-			return result, nil
+		ReadyForMergeStatus(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(prNumber)).
+		DoAndReturn(func(_ context.Context, owner, repo string, prNumber int) (*githubclt.PRStatus, error) {
+			return &res.PRStatus, nil
 		})
-}
 
-func mockCombindedStatus(clt *mocks.MockGithubClient, returnState string, returnLastChangedTime time.Time, returnErr error) *gomock.Call {
-	return clt.EXPECT().
-		CombinedStatus(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-		DoAndReturn(func(_ context.Context, owner, repo, ref string) (string, time.Time, error) {
-			return returnState, returnLastChangedTime, returnErr
-		})
+	res.Call = mockCall
+
+	return &res
 }
 
 func (a *Autoupdater) getQueue(key BranchID) *queue {
@@ -138,6 +142,18 @@ func (q *queue) suspendedLen() int {
 	defer q.lock.Unlock()
 
 	return len(q.suspended)
+}
+
+func waitForQueueUpdateRunsGreaterThan(t *testing.T, q *queue, v uint64) {
+	t.Helper()
+
+	require.Eventuallyf(
+		t,
+		func() bool { return q.getUpdateRuns() > v },
+		condWaitTimeout,
+		condCheckInterval,
+		"queue update runs count is %d, expected >= %d", q.getUpdateRuns(), v,
+	)
 }
 
 func waitForProcessedEventCnt(t *testing.T, a *Autoupdater, wantedLen int) {
@@ -188,7 +204,7 @@ func TestEnqueueDequeue(t *testing.T) {
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, pr.Number).AnyTimes()
+	mockReadyForMergeStatus(ghClient, pr.Number, githubclt.ReviewDecisionApproved, githubclt.StatusStatePending).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -233,7 +249,10 @@ func TestSuspendAndResume(t *testing.T) {
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
+	mockReadyForMergeStatus(
+		ghClient, pr.Number,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -287,7 +306,10 @@ func TestPushToPRBranchResumesPR(t *testing.T) {
 	require.NoError(t, err)
 
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
+	mockReadyForMergeStatus(
+		ghClient, pr.Number,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -339,7 +361,10 @@ func TestPushToBaseBranchTriggersUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).Times(2)
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
+	mockReadyForMergeStatus(
+		ghClient, pr.Number,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -382,7 +407,10 @@ func TestPushToBaseBranchResumesPRs(t *testing.T) {
 	prBranch := "pr_branch"
 	triggerLabel := "queue-add"
 
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, prNumber).AnyTimes()
+	mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
 	mockFailedGithubUpdateBranchCall(ghClient, prNumber)
 	mockSuccesssfulCreateIssueCommentCall(ghClient, prNumber)
 
@@ -431,7 +459,10 @@ func TestPRBaseBranchChangeMovesItToAnotherQueue(t *testing.T) {
 	triggerLabel := "queue-add"
 
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(2)
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, prNumber).AnyTimes()
+	mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -486,7 +517,10 @@ func TestUnlabellingPRDequeuesPR(t *testing.T) {
 	triggerLabel := "queue-add"
 
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, prNumber).Times(1)
+	mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).Times(1)
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -532,7 +566,10 @@ func TestClosingPRDequeuesPR(t *testing.T) {
 	triggerLabel := "queue-add"
 
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, prNumber).AnyTimes()
+	mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -633,10 +670,23 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 				}).
 				MinTimes(3)
 
-			mockCombindedStatus(ghClient, "failure", time.Now(), nil).Times(3)
-			mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
-			mockSuccessfulPullRequestIsApprovedCall(ghClient, 2).AnyTimes()
-			mockSuccessfulPullRequestIsApprovedCall(ghClient, 3).AnyTimes()
+			mergeStatusPr1 := mockReadyForMergeStatus(
+				ghClient, 1,
+				githubclt.ReviewDecisionApproved, githubclt.StatusStateFailure,
+			)
+			mergeStatusPr1.AnyTimes()
+
+			mergeStatusPr2 := mockReadyForMergeStatus(
+				ghClient, 2,
+				githubclt.ReviewDecisionApproved, githubclt.StatusStateFailure,
+			)
+			mergeStatusPr2.AnyTimes()
+
+			mergeStatusPr3 := mockReadyForMergeStatus(
+				ghClient, 3,
+				githubclt.ReviewDecisionApproved, githubclt.StatusStateFailure,
+			)
+			mergeStatusPr3.AnyTimes()
 
 			retryer := goordinator.NewRetryer()
 			autoupdater := NewAutoupdater(
@@ -681,7 +731,10 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 			assert.Equal(t, 0, queueBaseBranch2.activeLen(), "active queue")
 			assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")
 
-			mockCombindedStatus(ghClient, "success", time.Now(), nil).MinTimes(3)
+			mergeStatusPr1.StatusCheckRollupState = githubclt.StatusStateSuccess
+			mergeStatusPr2.StatusCheckRollupState = githubclt.StatusStateSuccess
+			mergeStatusPr3.StatusCheckRollupState = githubclt.StatusStateSuccess
+
 			evChan <- tc.newResumeEventFn(pr1.Branch, pr2.Branch, pr3.Branch)
 
 			waitForSuspendQueueLen(t, queueBaseBranch1, 0)
@@ -721,7 +774,7 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 			testName: "checkrun-cancelled",
 			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
 				return &github_prov.Event{
-					Event: newCheckRunEvent("failure", branchNames...),
+					Event: newCheckRunEvent("cancelled", branchNames...),
 				}
 			},
 		},
@@ -730,7 +783,7 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 			testName: "checkrun-action_required",
 			newResumeEventFn: func(branchNames ...string) *github_prov.Event {
 				return &github_prov.Event{
-					Event: newCheckRunEvent("failure", branchNames...),
+					Event: newCheckRunEvent("action_required", branchNames...),
 				}
 			},
 		},
@@ -755,9 +808,23 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 			pr3, err := NewPullRequest(3, "pr_branch3", "", "", "")
 			require.NoError(t, err)
 
-			mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).AnyTimes()
-			mockSuccessfulPullRequestIsApprovedCall(ghClient, 2).AnyTimes()
-			mockSuccessfulPullRequestIsApprovedCall(ghClient, 3).AnyTimes()
+			mergeStatusPr1 := mockReadyForMergeStatus(
+				ghClient, 1,
+				githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+			)
+			mergeStatusPr1.AnyTimes()
+
+			mergeStatusPr2 := mockReadyForMergeStatus(
+				ghClient, 2,
+				githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+			)
+			mergeStatusPr2.AnyTimes()
+
+			mergeStatusPr3 := mockReadyForMergeStatus(
+				ghClient, 3,
+				githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+			)
+			mergeStatusPr3.AnyTimes()
 
 			ghClient.
 				EXPECT().
@@ -766,20 +833,6 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 					return false, nil
 				}).
 				AnyTimes()
-
-			var failChecks atomic.Bool
-			ghClient.EXPECT().
-				CombinedStatus(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-				DoAndReturn(func(_ context.Context, owner, repo, ref string) (string, time.Time, error) {
-					if failChecks.Load() {
-						if ref == pr1.Branch || ref == pr3.Branch {
-							t.Logf("FAILED, PR BRANCH: %q\n", ref)
-							return "failed", time.Now(), nil
-						}
-					}
-					t.Logf("SUCCESS, PR BRANCH: %q\n", ref)
-					return "success", time.Now(), nil
-				}).MinTimes(4)
 
 			retryer := goordinator.NewRetryer()
 			autoupdater := NewAutoupdater(
@@ -821,7 +874,8 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 			waitForActiveQueueLen(t, queueBaseBranch2, 1)
 			assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
 
-			failChecks.Store(true)
+			mergeStatusPr1.StatusCheckRollupState = githubclt.StatusStateFailure
+			mergeStatusPr3.StatusCheckRollupState = githubclt.StatusStateFailure
 			evChan <- tc.newResumeEventFn(pr1.Branch, pr2.Branch, pr3.Branch)
 
 			waitForSuspendQueueLen(t, queueBaseBranch1, 1)
@@ -845,10 +899,11 @@ func TestPRIsSuspendedWhenStatusIsStuck(t *testing.T) {
 	prNumber := 1
 	triggerLabel := "queue-add"
 
-	pendingStatusCheckTs := time.Now().Add(-2 * time.Hour)
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).MinTimes(2)
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).MinTimes(2)
-	mockCombindedStatus(ghClient, "pending", pendingStatusCheckTs, nil).MinTimes(2)
+	mockReadyForMergeStatus(
+		ghClient, 1,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).MinTimes(2)
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -933,8 +988,11 @@ func TestPRIsSuspendedWhenUptodateAndHasFailedStatus(t *testing.T) {
 			triggerLabel := "queue-add"
 
 			mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).Times(1)
-			mockCombindedStatus(ghClient, tc.StatusState, time.Now(), tc.StatusError).Times(1)
-			mockSuccessfulPullRequestIsApprovedCall(ghClient, 1)
+
+			mockReadyForMergeStatus(
+				ghClient, 1,
+				githubclt.ReviewDecisionApproved, githubclt.StatusStateError,
+			).AnyTimes()
 
 			retryer := goordinator.NewRetryer()
 			autoupdater := NewAutoupdater(
@@ -973,7 +1031,10 @@ func TestEnqueueDequeueByAutomergeEvents(t *testing.T) {
 	prNumber := 1
 	prBranch := "pr_branch"
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).Times(1)
+	mockReadyForMergeStatus(
+		ghClient, 1,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -1024,8 +1085,14 @@ func TestInitialSync(t *testing.T) {
 		ListPullRequests(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(prIterNone)
 
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 1)
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 4)
+	mockReadyForMergeStatus(
+		ghClient, 1,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
+	mockReadyForMergeStatus(
+		ghClient, 4,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
 
 	prAutoMergeEnabled := newBasicPullRequest(1, "main", "pr1")
 	prAutoMergeEnabled.AutoMerge = &github.PullRequestAutoMerge{}
@@ -1101,7 +1168,10 @@ func TestFirstPRInQueueIsUpdatedPeriodically(t *testing.T) {
 	prNumber := 1
 	triggerLabel := "queue-add"
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(2)
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, 1).Times(2)
+	mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -1142,13 +1212,12 @@ func TestReviewApprovedEventResumesSuspendedPR(t *testing.T) {
 	prBranch := "pr_branch"
 	triggerLabel := "queue-add"
 
-	mockCombindedStatus(ghClient, "success", time.Now(), nil).Times(1)
-	ghClient.
-		EXPECT().
-		PullRequestIsApproved(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(prNumber)).
-		DoAndReturn(func(_ context.Context, owner, repo string, prNumber int) (bool, error) {
-			return false, nil
-		})
+	mockStatusReturn := mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionChangesRequested,
+		githubclt.StatusStateSuccess,
+	)
+	mockStatusReturn.AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -1173,7 +1242,7 @@ func TestReviewApprovedEventResumesSuspendedPR(t *testing.T) {
 	assert.Equal(t, queue.activeLen(), 0)
 	assert.Len(t, queue.suspended, 1)
 
-	mockSuccessfulPullRequestIsApprovedCall(ghClient, prNumber).Times(2)
+	mockStatusReturn.ReviewDecision = githubclt.ReviewDecisionApproved
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
 
 	evChan <- &github_prov.Event{Event: newPullRequestReviewEvent(prNumber, prBranch, baseBranch, "submitted", "approved")}
@@ -1193,7 +1262,13 @@ func TestDismissingApprovalSuspendsActivePR(t *testing.T) {
 	prBranch := "pr_branch"
 	triggerLabel := "queue-add"
 
-	mockPullRequestIsApprovedCall(ghClient, prNumber, true).Times(1)
+	mockStatusReturn := mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionApproved,
+		githubclt.StatusStatePending,
+	)
+	mockStatusReturn.AnyTimes()
+
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
 
 	retryer := goordinator.NewRetryer()
@@ -1218,7 +1293,8 @@ func TestDismissingApprovalSuspendsActivePR(t *testing.T) {
 	assert.Equal(t, queue.activeLen(), 1, "pr not in active queue")
 	assert.Len(t, queue.suspended, 0, "pr is suspended")
 
-	mockPullRequestIsApprovedCall(ghClient, prNumber, false).Times(1)
+	mockStatusReturn.ReviewDecision = githubclt.ReviewDecisionChangesRequested
+
 	evChan <- &github_prov.Event{Event: newPullRequestReviewEvent(prNumber, prBranch, baseBranch, "dismissed", "approved")}
 	waitForProcessedEventCnt(t, autoupdater, 2)
 	assert.Equal(t, queue.activeLen(), 0, "pr is active")
@@ -1226,7 +1302,9 @@ func TestDismissingApprovalSuspendsActivePR(t *testing.T) {
 }
 
 func TestRequestingReviewChangesSuspendsPR(t *testing.T) {
-	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t,
+		zaptest.Level(zapcore.DebugLevel),
+	).Named(t.Name()).WithOptions(zap.WithCaller(true))))
 	evChan := make(chan *github_prov.Event, 1)
 	defer close(evChan)
 
@@ -1236,7 +1314,13 @@ func TestRequestingReviewChangesSuspendsPR(t *testing.T) {
 	prBranch := "pr_branch"
 	triggerLabel := "queue-add"
 
-	mockPullRequestIsApprovedCall(ghClient, prNumber, true).Times(1)
+	mockStatusReturn := mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionApproved,
+		githubclt.StatusStatePending,
+	)
+	mockStatusReturn.AnyTimes()
+
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
 
 	retryer := goordinator.NewRetryer()
@@ -1258,12 +1342,14 @@ func TestRequestingReviewChangesSuspendsPR(t *testing.T) {
 
 	queue := autoupdater.getQueue(BranchID{RepositoryOwner: repoOwner, Repository: repo, Branch: baseBranch})
 	require.NotNil(t, queue)
+	waitForQueueUpdateRunsGreaterThan(t, queue, 0)
 	assert.Equal(t, queue.activeLen(), 1, "pr not in active queue")
 	assert.Len(t, queue.suspended, 0, "pr is suspended")
 
-	mockPullRequestIsApprovedCall(ghClient, prNumber, false).Times(1)
+	mockStatusReturn.ReviewDecision = githubclt.ReviewDecisionChangesRequested
 	evChan <- &github_prov.Event{Event: newPullRequestReviewEvent(prNumber, prBranch, baseBranch, "submitted", "changes_requested")}
 	waitForProcessedEventCnt(t, autoupdater, 2)
+
 	assert.Equal(t, queue.activeLen(), 0, "pr is active")
 	assert.Len(t, queue.suspended, 1, "pr not suspended")
 }
