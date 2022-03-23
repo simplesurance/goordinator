@@ -2,7 +2,6 @@ package autoupdate
 
 import (
 	"context"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -29,8 +28,13 @@ func (c *DryGithubClient) UpdateBranch(ctx context.Context, owner, repo string, 
 	return false, nil
 }
 
-func (c *DryGithubClient) CombinedStatus(ctx context.Context, owner, repo, ref string) (string, time.Time, error) {
-	return c.clt.CombinedStatus(ctx, owner, repo, ref)
+func (c *DryGithubClient) ReadyForMergeStatus(ctx context.Context, owner, repo string, prNumber int) (*githubclt.PRStatus, error) {
+	c.logger.Info("simulated fetching ready for merge status, pr is approved, all checks successful")
+
+	return &githubclt.PRStatus{
+		ReviewDecision:         githubclt.ReviewDecisionApproved,
+		StatusCheckRollupState: githubclt.StatusStateSuccess,
+	}, nil
 }
 
 func (c *DryGithubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error {
@@ -40,8 +44,4 @@ func (c *DryGithubClient) CreateIssueComment(ctx context.Context, owner, repo st
 
 func (c *DryGithubClient) ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator {
 	return c.clt.ListPullRequests(ctx, owner, repo, state, sort, sortDirection)
-}
-
-func (c *DryGithubClient) PullRequestIsApproved(ctx context.Context, owner, repo string, prNumber int) (bool, error) {
-	return c.clt.PullRequestIsApproved(ctx, owner, repo, prNumber)
 }
