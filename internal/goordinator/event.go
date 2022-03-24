@@ -75,7 +75,7 @@ func fromProviderEvent(event *github.Event) *Event {
 	return result
 }
 
-func extractEventInfo(ghEvent interface{}) *Event {
+func extractEventInfo(ghEvent any) *Event {
 	var result Event
 
 	if v, ok := ghEvent.(pushEventRepoGetter); ok {

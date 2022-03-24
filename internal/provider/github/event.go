@@ -11,6 +11,6 @@ type Event struct {
 	// JSON is the event payload as JSON
 	JSON []byte
 	// Event is the parsed JSON payload as struct type returned by github.ParseWebHook()
-	Event     interface{}
+	Event     any
 	LogFields []zap.Field
 }

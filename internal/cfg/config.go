@@ -43,7 +43,7 @@ type Trigger struct {
 type Rules struct {
 	Name string `toml:"name"`
 	Trigger
-	Actions []map[string]interface{} `toml:"action"`
+	Actions []map[string]any `toml:"action"`
 }
 
 func Load(reader io.Reader) (*Config, error) {
