@@ -18,7 +18,7 @@ jobs:
           go-version: 1.18
 
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Build
         run: go build -v ./...
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: golangci-lint
         run: docker run -v $GITHUB_WORKSPACE:/repo -w /repo golangci/golangci-lint:v1.45 golangci-lint run
