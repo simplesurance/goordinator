@@ -78,6 +78,9 @@ autoupdater.http_endpoint = "/autoupdater"
  # - `{{ .Event.EventType }}`
  # - `{{ .Event.DeliveryID }}`
  # - `{{ .Event.Provider }}`
+ # The following template functions can be used:
+ # - `{{ queryescape "a&b" }}
+ #   Escapes a string so it can be safely placed inside a URL query.
   [[rule.action]]
    # The "httprequest" action sends a http-request. :-)
    action = "httprequest"

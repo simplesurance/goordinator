@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"text/template"
 
@@ -136,32 +137,38 @@ func (r *Rule) Match(ctx context.Context, event *Event) (MatchResult, error) {
 	}
 }
 
+var templateFuncs = template.FuncMap{
+	"queryescape": url.QueryEscape,
+}
+
+func templateFunc(event *Event) func(in string) (string, error) {
+	return func(text string) (string, error) {
+		templ, err := template.New("action").Funcs(templateFuncs).Parse(text)
+		if err != nil {
+			return "", err
+		}
+
+		var out bytes.Buffer
+
+		templateContext := struct{ Event *Event }{
+			Event: event,
+		}
+
+		err = templ.Execute(&out, &templateContext)
+		if err != nil {
+			return "", err
+		}
+
+		return out.String(), nil
+	}
+}
+
 // TemplateActions templates the filter query of the rule for the specific event.
 func (r *Rule) TemplateActions(ctx context.Context, event *Event) ([]action.Runner, error) {
 	result := make([]action.Runner, 0, len(r.actions))
 
 	for _, actionDef := range r.actions {
-		templFun := func(in string) (string, error) {
-			templ, err := template.New("action").Parse(in)
-			if err != nil {
-				return "", err
-			}
-
-			var out bytes.Buffer
-
-			templateContext := struct{ Event *Event }{
-				Event: event,
-			}
-
-			err = templ.Execute(&out, &templateContext)
-			if err != nil {
-				return "", err
-			}
-
-			return out.String(), nil
-		}
-
-		runner, err := actionDef.Template(event, templFun)
+		runner, err := actionDef.Template(event, templateFunc(event))
 		if err != nil {
 			return nil, fmt.Errorf("templating action definition %q failed: %w", actionDef, err)
 		}
