@@ -122,7 +122,7 @@ func (clt *Client) ReadyForMergeStatus(ctx context.Context, owner, repo string, 
 		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
 
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"owner":  githubv4.String(owner),
 		"name":   githubv4.String(repo),
 		"number": githubv4.Int(prNumber),

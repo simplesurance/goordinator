@@ -65,7 +65,7 @@ func NewPullRequest(nr int, branch, author, title, link string) (*PullRequest, e
 
 // Equal returns true if p and other are of type PullRequest and its Number
 // field contains the same value.
-func (p *PullRequest) Equal(other interface{}) bool {
+func (p *PullRequest) Equal(other any) bool {
 	p1, ok := other.(*PullRequest)
 	if !ok {
 		return false

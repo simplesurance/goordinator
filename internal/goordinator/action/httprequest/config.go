@@ -34,7 +34,7 @@ func WithAuth(user, password string) func(*Config) {
 
 // NewConfigFromMap instantiates a config from a configuration map.
 // The map is usually the unmarshalled rules configuration file.
-func NewConfigFromMap(m map[string]interface{}) (*Config, error) {
+func NewConfigFromMap(m map[string]any) (*Config, error) {
 	url, err := maputils.StrVal(m, "url")
 	if err != nil {
 		return nil, err

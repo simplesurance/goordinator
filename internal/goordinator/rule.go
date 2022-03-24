@@ -54,8 +54,8 @@ func NewRule(name, eventProvider, jqQuery string, actions []ActionConfig) (*Rule
 	}, nil
 }
 
-func goJQIterToSlice(iter gojq.Iter) ([]interface{}, []error) {
-	var result []interface{}
+func goJQIterToSlice(iter gojq.Iter) ([]any, []error) {
+	var result []any
 	var errors []error
 
 	for {
@@ -90,7 +90,7 @@ func errString(errs []error) string {
 // Match returns Match if the event.Provider matches the Rule.EventSource and
 // the filter-query of the rule evalutes to true for JSON representation of the event.
 func (r *Rule) Match(ctx context.Context, event *Event) (MatchResult, error) {
-	var evUn interface{}
+	var evUn any
 
 	if r.eventSource != event.Provider {
 		return EventSourceMismatch, nil
