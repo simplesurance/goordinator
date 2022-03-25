@@ -88,27 +88,27 @@ func NewConfigFromMap(m map[string]interface{}) (*Config, error) {
 
 }
 
-// Template runs the fn callback on all configuration options that can contain
-// template strings.  fn must replace the template strings.
+// Render runs renderFunc on all configuration options that can contain
+// template strings. renderFunc must replace all template strings.
 // It returns an executable action that uses the templated config.
-func (c *Config) Template(_ action.Event, fn func(string) (string, error)) (action.Runner, error) {
+func (c *Config) Render(_ action.Event, renderFunc func(string) (string, error)) (action.Runner, error) {
 	var err error
 	newConfig := *c
 
-	newConfig.url, err = fn(newConfig.url)
+	newConfig.url, err = renderFunc(newConfig.url)
 	if err != nil {
 		return nil, fmt.Errorf("templating url failed: %w", err)
 	}
 
 	if newConfig.data != "" {
-		newConfig.data, err = fn(newConfig.data)
+		newConfig.data, err = renderFunc(newConfig.data)
 		if err != nil {
 			return nil, fmt.Errorf("templating data failed: %w", err)
 		}
 	}
 
 	for k, v := range c.headers {
-		c.headers[k], err = fn(v)
+		c.headers[k], err = renderFunc(v)
 		if err != nil {
 			return nil, fmt.Errorf("templating header failed: %w", err)
 		}

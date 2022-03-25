@@ -22,9 +22,9 @@ import (
 
 // ActionConfig is an interface for an action that is executed as part of a Rule.
 type ActionConfig interface {
-	// Template runs templateFn for all configuration options of the action
-	// that should be templated and returns a runnable action.
-	Template(event action.Event, templateFn func(string) (string, error)) (action.Runner, error)
+	// Render runs renderFunc for all configuration options of the
+	// action that are templated and returns a runnable action.
+	Render(event action.Event, renderFunc func(string) (string, error)) (action.Runner, error)
 	// String returns a short representation of the ActionConfig
 	String() string
 	// String returns a formatted detailed description.
@@ -141,7 +141,7 @@ var templateFuncs = template.FuncMap{
 	"queryescape": url.QueryEscape,
 }
 
-func templateFunc(event *Event) func(in string) (string, error) {
+func renderFunc(event *Event) func(in string) (string, error) {
 	return func(text string) (string, error) {
 		templ, err := template.New("action").Funcs(templateFuncs).Parse(text)
 		if err != nil {
@@ -168,7 +168,7 @@ func (r *Rule) TemplateActions(ctx context.Context, event *Event) ([]action.Runn
 	result := make([]action.Runner, 0, len(r.actions))
 
 	for _, actionDef := range r.actions {
-		runner, err := actionDef.Template(event, templateFunc(event))
+		runner, err := actionDef.Render(event, renderFunc(event))
 		if err != nil {
 			return nil, fmt.Errorf("templating action definition %q failed: %w", actionDef, err)
 		}
