@@ -641,7 +641,13 @@ func (a *Autoupdater) processPullRequestEvent(ctx context.Context, logger *zap.L
 		}
 
 		if err := a.ChangeBaseBranch(ctx, oldBaseBranch, bb, prNumber); err != nil {
-			logError(logger, "changing base branch failed", err)
+			if errors.Is(err, ErrNotFound) || errors.Is(err, ErrAlreadyExists) {
+				logger.Debug("changing base branch for pr failed failed, pr not qeueud",
+					zap.Error(err))
+				return
+			}
+
+			logger.Error("changing base branch for pr failed", zap.Error(err))
 			return
 		}
 
