@@ -26,7 +26,7 @@ func NewUpdateBranchConfig(clt *githubclt.Client) *UpdateBranchConfig {
 	}
 }
 
-func (c *UpdateBranchConfig) Template(ev action.Event, _ func(string) (string, error)) (action.Runner, error) {
+func (c *UpdateBranchConfig) Render(ev action.Event, _ func(string) (string, error)) (action.Runner, error) {
 	if ev.GetRepository() == "" {
 		return nil, errors.New("repository for event is unknown")
 	}

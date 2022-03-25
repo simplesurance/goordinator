@@ -8,7 +8,7 @@ import (
 )
 
 func TestTemplateQueryEscape(t *testing.T) {
-	templFunc := templateFunc(&Event{})
+	templFunc := renderFunc(&Event{})
 	res, err := templFunc(`{{ queryescape "a&b+c" }}`)
 	require.NoError(t, err)
 	assert.Equal(t, "a%26b%2Bc", res)
