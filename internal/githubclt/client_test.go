@@ -2,6 +2,7 @@ package githubclt
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -36,4 +37,10 @@ func TestWrapRetryableErrorsGraphql(t *testing.T) {
 
 	var retryableErr *goorderr.RetryableError
 	assert.ErrorAs(t, err, &retryableErr)
+}
+
+func TestWrapRetryableErrorsGraphqlWithNonStatusErr(t *testing.T) {
+	err := errors.New("error")
+	wrappedErr := (&Client{}).wrapGraphQLRetryableErrors(err)
+	assert.Equal(t, err, wrappedErr)
 }

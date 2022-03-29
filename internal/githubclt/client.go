@@ -369,7 +369,7 @@ var graphQlHTTPStatusErrRe = regexp.MustCompile(`^non-200 OK status code: ([0-9]
 func (clt *Client) wrapGraphQLRetryableErrors(err error) error {
 	matches := graphQlHTTPStatusErrRe.FindStringSubmatch(err.Error())
 	if len(matches) != 2 {
-		return nil
+		return err
 	}
 
 	errcode, atoiErr := strconv.Atoi(matches[1])
