@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/google/go-github/v40 v40.0.0
+	github.com/google/go-github/v43 v43.0.0
 	github.com/itchyny/gojq v0.12.5
 	github.com/pelletier/go-toml v1.9.4
 	github.com/prometheus/client_golang v1.11.0
