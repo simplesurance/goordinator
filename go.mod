@@ -9,7 +9,7 @@ require (
 	github.com/itchyny/gojq v0.12.5
 	github.com/pelletier/go-toml v1.9.4
 	github.com/prometheus/client_golang v1.12.1
-	github.com/shurcooL/githubv4 v0.0.0-20211117020012-5800b9de5b8b
+	github.com/shurcooL/githubv4 v0.0.0-20220115235240-a14260e6f8a2
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	github.com/sykesm/zap-logfmt v0.0.4
@@ -36,7 +36,7 @@ require (
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/net v0.0.0-20211123203042-d83791d6bcd9 // indirect
+	golang.org/x/net v0.0.0-20220325170049-de3da57026de // indirect
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
