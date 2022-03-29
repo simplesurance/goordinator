@@ -55,6 +55,7 @@ var (
 		"deploy_key":                     "DeployKeyEvent",
 		"deployment":                     "DeploymentEvent",
 		"deployment_status":              "DeploymentStatusEvent",
+		"discussion":                     "DiscussionEvent",
 		"fork":                           "ForkEvent",
 		"github_app_authorization":       "GitHubAppAuthorizationEvent",
 		"gollum":                         "GollumEvent",
@@ -86,6 +87,7 @@ var (
 		"repository_dispatch":            "RepositoryDispatchEvent",
 		"repository_vulnerability_alert": "RepositoryVulnerabilityAlertEvent",
 		"release":                        "ReleaseEvent",
+		"secret_scanning_alert":          "SecretScanningAlertEvent",
 		"star":                           "StarEvent",
 		"status":                         "StatusEvent",
 		"team":                           "TeamEvent",
@@ -255,14 +257,14 @@ func ValidateSignature(signature string, payload, secretToken []byte) error {
 
 // WebHookType returns the event type of webhook request r.
 //
-// GitHub API docs: https://docs.github.com/en/free-pro-team@latest/rest/reference/repos/hooks/#webhook-headers
+// GitHub API docs: https://docs.github.com/en/developers/webhooks-and-events/events/github-event-types
 func WebHookType(r *http.Request) string {
 	return r.Header.Get(EventTypeHeader)
 }
 
 // DeliveryID returns the unique delivery ID of webhook request r.
 //
-// GitHub API docs: https://docs.github.com/en/free-pro-team@latest/rest/reference/repos/hooks/#webhook-headers
+// GitHub API docs: https://docs.github.com/en/developers/webhooks-and-events/events/github-event-types
 func DeliveryID(r *http.Request) string {
 	return r.Header.Get(DeliveryIDHeader)
 }
