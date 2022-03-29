@@ -84,7 +84,7 @@ github.com/thecodeteam/goodbye
 # go.uber.org/atomic v1.9.0
 ## explicit; go 1.13
 go.uber.org/atomic
-# go.uber.org/goleak v1.1.11-0.20210813005559-691160354723
+# go.uber.org/goleak v1.1.12
 ## explicit; go 1.13
 go.uber.org/goleak
 go.uber.org/goleak/internal/stack

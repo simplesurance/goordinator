@@ -15,7 +15,7 @@ require (
 	github.com/sykesm/zap-logfmt v0.0.4
 	github.com/thecodeteam/goodbye v0.0.0-20170927022442-a83968bda2d3
 	go.uber.org/atomic v1.9.0
-	go.uber.org/goleak v1.1.11-0.20210813005559-691160354723
+	go.uber.org/goleak v1.1.12
 	go.uber.org/zap v1.19.1
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 )
