@@ -500,8 +500,8 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		logfields.ReviewDecision(status.ReviewDecision),
 		logfields.StatusCheckRollupState(status.StatusCheckRollupState),
 	)
-	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
 
+	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
 				"suspending PR because it is not approved, failed",
