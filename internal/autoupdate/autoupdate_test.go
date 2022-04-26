@@ -1362,3 +1362,51 @@ func TestRequestingReviewChangesSuspendsPR(t *testing.T) {
 	assert.Equal(t, queue.activeLen(), 0, "pr is active")
 	assert.Len(t, queue.suspended, 1, "pr not suspended")
 }
+
+func TestUpdatesAreResumeIfTestsFailAndBaseIsUpdated(t *testing.T) {
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
+	evChan := make(chan *github_prov.Event, 1)
+	defer close(evChan)
+
+	mockctrl := gomock.NewController(t)
+	ghClient := mocks.NewMockGithubClient(mockctrl)
+	prNumber := 1
+	prBranch := "pr_branch"
+	triggerLabel := "queue-add"
+
+	mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionApproved,
+		githubclt.StatusStateFailure,
+	).Times(2)
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).Times(1)
+
+	retryer := goordinator.NewRetryer()
+	autoupdater := NewAutoupdater(
+		ghClient,
+		evChan,
+		retryer,
+		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
+		true,
+		[]string{triggerLabel},
+	)
+
+	autoupdater.Start()
+	t.Cleanup(autoupdater.Stop)
+
+	baseBranch := "main"
+	evChan <- &github_prov.Event{Event: newPullRequestLabeledEvent(prNumber, prBranch, baseBranch, triggerLabel)}
+	waitForProcessedEventCnt(t, autoupdater, 1)
+
+	queue := autoupdater.getQueue(BranchID{RepositoryOwner: repoOwner, Repository: repo, Branch: baseBranch})
+	// PR should be in suspend queue, tests are failing
+	require.NotNil(t, queue)
+	assert.Equal(t, queue.activeLen(), 0)
+	assert.Len(t, queue.suspended, 1)
+
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
+	evChan <- &github_prov.Event{Event: newPushEvent(baseBranch)}
+	waitForProcessedEventCnt(t, autoupdater, 2)
+	assert.Equal(t, queue.activeLen(), 1)
+	assert.Len(t, queue.suspended, 0)
+}
