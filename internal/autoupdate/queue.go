@@ -522,7 +522,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		return
 	}
 
-	logger.Debug("pr is approved and status checks are successful")
+	logger.Debug("pr is approved")
 
 	baseBranchUpdateErr := q.retryer.Run(ctx, func(ctx context.Context) error {
 		var err error
