@@ -72,7 +72,7 @@
                 <th>Rank</th>
                 <th>Pull Request</th>
                 <th>Author</th>
-                <th>Enqueued At</th>
+                <th>Ready for Updates Since</th>
                 <th>Status</th>
               </tr>
                 {{ range $i, $pr := $queue.ActivePRs }}
@@ -97,7 +97,7 @@
                     <a href="{{ $pr.Link }} ">{{ $pr.Title }} (#{{ $pr.Number }})</a>
                   </td>
                   <td>{{ $pr.Author}}</td>
-                  <td>{{ $pr.EnqueuedSince.Format "2006-01-02 15:04:05 MST" }}</td>
+                  <td></td>
                   <td class="td_status_suspended">Suspended</td>
                 </tr>
               {{ end }}
