@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -44,7 +44,7 @@ func (h *Runner) Run(ctx context.Context) error {
 	}
 
 	if h.data != "" {
-		req.Body = ioutil.NopCloser(bytes.NewBufferString(h.data))
+		req.Body = io.NopCloser(bytes.NewBufferString(h.data))
 	}
 
 	req.SetBasicAuth(h.user, h.password)
@@ -59,7 +59,7 @@ func (h *Runner) Run(ctx context.Context) error {
 
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Warn(
 			"reading http response body failed",
