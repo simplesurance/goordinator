@@ -2,7 +2,6 @@ package cfg
 
 import (
 	"io"
-	"io/ioutil"
 
 	"github.com/pelletier/go-toml"
 )
@@ -49,7 +48,7 @@ type Rules struct {
 func Load(reader io.Reader) (*Config, error) {
 	var result Config
 
-	data, err := ioutil.ReadAll(reader)
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}
