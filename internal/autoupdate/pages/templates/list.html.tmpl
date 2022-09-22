@@ -31,7 +31,7 @@
                 disabled
               {{ end }}
               <li>
-                MonitoredRepositories:
+                Monitored Repositories:
                 <ul>
                   {{ range .MonitoredRepositories }}
                     <li>
@@ -118,23 +118,24 @@
         </header>
 
         <p>
-          The autoupdater keeps pull requests uptodate with their base branch.
+          The autoupdater keeps pull requests up to date with their base branch.
         </p>
 
         <p>
           A pull request is enqueued for autoupdates when auto_merge for the PR
-          is enabled or it is marked with a configuration label.<br>
-          The first active pull request in each queue is kept uptodate with its
-          base-branch. If the base branch changes, the base branch is merged into
-          the pull request branch.<br>
+          is enabled or it is marked with a configurable label.<br>
+          The first pull request in each queue has the active status and is kept
+          up to date with its base-branch.
+          If the base branch changes, the base branch is merged into the pull
+          request branch.<br>
           Other pull requests are enqueued for being kept uptodate.
         </p>
 
         <p>
           If a base-branch can not be merged into a pull request branch, a
           negative status check for a PR was reported, it is not approved or it
-          become stale, updates for the PR are suspended.<br>
-          When the branch of the pull request or it base branch changes or its
+          became stale, updates for the PR are suspended.<br>
+          When the branch of the pull request or its base branch changes or its
           combined check status is not negative anymore it is enqueued again for
           being kept up to date.
         </p>
