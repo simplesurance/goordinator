@@ -30,8 +30,7 @@
 // pull requests are removed from the autoupdate queue, when it was closed, or
 // an inverse trigger event (auto_merge_disabled, unlabeled) was received.
 //
-//
-// Components
+// # Components
 //
 // The main components are the queue and autoupdater.
 //

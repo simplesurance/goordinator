@@ -215,33 +215,39 @@ func (a *Autoupdater) eventLoop() {
 //
 // The following actions are triggered on events:
 //
-//  - Enqueue a pull request on:
-//    - PullRequestEvent auto_merge_enabled
-//    - PullRequestEvent labeled
+// Enqueue a pull request on:
 //
-//  - Dequeue a pull request on:
-//    - PullRequestEvent closed
-//    - PullRequestEvent auto_merge_disabled
-//    - PullRequestEvent unlabeled
+//   - PullRequestEvent auto_merge_enabled
+//   - PullRequestEvent labeled
 //
-//  - Move a pull request to another base branch queue on:
-//    - PullRequestEvent edited and Base object is set
+// Dequeue a pull request on
 //
-//  - Resume updates for a suspended pull request on:
-//    - PullRequestEvent synchronize for the pr branch
-//    - PushEvent for it's base-branch
-//    - StatusEvent with success state and the StatusCheckRollup is successful and ReviewDecision approved.
-//    - CheckRunEvent with a neutral, success or skipped check conclusion and
-//      the StatusCheckRollup is successful and ReviewDecision approved.
-//    - PullRequestReviewEvent with action submitted and state approved
+//   - PullRequestEvent closed
+//   - PullRequestEvent auto_merge_disabled
+//   - PullRequestEvent unlabeled
 //
-//  - Trigger update with base-branch on:
-//    - PushEvent for a base branch
-//    - (updates for pull request branches on git-push are triggered via
-//       PullRequest synchronize events)
-//    - StatusEvent with error or failure state
-//    - CheckRunEvent with cancelled, failure, timed_out or action_required
-//      conclusion
+// Move a pull request to another base branch queue on:
+//
+//   - PullRequestEvent edited and Base object is set
+//
+// Resume updates for a suspended pull request on:
+//
+//   - PullRequestEvent synchronize for the pr branch
+//   - PushEvent for it's base-branch
+//   - StatusEvent with success state and the StatusCheckRollup is successful
+//     and ReviewDecision approved.
+//   - CheckRunEvent with a neutral, success or skipped check conclusion and
+//     the StatusCheckRollup is successful and ReviewDecision approved.
+//   - PullRequestReviewEvent with action submitted and state approved
+//
+// Trigger update with base-branch on:
+//
+//   - PushEvent for a base branch
+//   - (updates for pull request branches on git-push are triggered via
+//     PullRequest synchronize events)
+//   - StatusEvent with error or failure state
+//   - CheckRunEvent with cancelled, failure, timed_out or action_required
+//     conclusion
 //
 // Other events are ignored and a debug message is logged for those.
 func (a *Autoupdater) processEvent(ctx context.Context, event *github_prov.Event) {

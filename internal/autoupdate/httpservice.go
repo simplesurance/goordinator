@@ -13,6 +13,7 @@ import (
 )
 
 // templFS contains the web pages.
+//
 //go:embed pages/templates/*
 var templFS embed.FS
 
