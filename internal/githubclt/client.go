@@ -267,6 +267,39 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	return true, nil
 }
 
+// RemoveLabel removes a label from a Pull-Request or issue.
+// If the issue or PR does not have the label, the operation succeeds.
+func (clt *Client) RemoveLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error {
+	_, err := clt.restClt.Issues.RemoveLabelForIssue(
+		ctx,
+		owner,
+		repo,
+		pullRequestOrIssueNumber,
+		label,
+	)
+	if err != nil {
+		var respErr *github.ErrorResponse
+		if errors.As(err, &respErr) {
+			if respErr.Response.StatusCode == http.StatusNotFound {
+				clt.logger.Debug("removing label returned a not found response, interpreting it as success",
+					logfields.RepositoryOwner(owner),
+					logfields.Repository(repo),
+					logfields.PullRequest(pullRequestOrIssueNumber),
+					logfields.Label(label),
+					logfields.Event("github_remove_label_returned_not_found"),
+					zap.Error(err),
+				)
+
+				return nil
+			}
+
+			return clt.wrapGraphQLRetryableErrors(err)
+		}
+	}
+
+	return nil
+}
+
 type PRIterator interface {
 	Next() (*github.PullRequest, error)
 }

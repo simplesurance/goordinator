@@ -34,6 +34,10 @@ func CheckStatus(val string) zap.Field {
 	return zap.String("github.check_status", val)
 }
 
+func Label(val string) zap.Field {
+	return zap.String("github.label", val)
+}
+
 func BaseBranch(val string) zap.Field {
 	return zap.String("git.base_branch", val)
 }
