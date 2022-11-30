@@ -105,3 +105,10 @@ autoupdater.http_endpoint = "/autoupdater"
     # pull request branch.
     # Requires github_api_token to be defined.
     action = "updatebranch"
+
+  [[rule.action]]
+    # removelabel removes a label from the GitHub Pull-Request for that the
+    # event was received.
+    # Requires github_api_token to be defined.
+    action = "removelabel"
+    label = "ci"

@@ -210,13 +210,27 @@ func RulesFromCfg(cfg *cfg.Config, ghClient *githubclt.Client) (Rules, error) {
 			case "httprequest":
 				cfg, err := httprequest.NewConfigFromMap(cfgAction)
 				if err != nil {
-					return nil, fmt.Errorf("rule %s: action %s: httprequest: parsing  failed: %w", cfgRule.Name, actionName, err)
+					return nil, fmt.Errorf(
+						"rule %s: action %s: httprequest: parsing failed: %w",
+						cfgRule.Name, actionName, err,
+					)
 				}
 
 				actions = append(actions, cfg)
 
 			case "updatebranch":
 				cfg := github.NewUpdateBranchConfig(ghClient)
+				actions = append(actions, cfg)
+
+			case "removelabel":
+				cfg, err := github.NewRemoveLabelConfigFromMap(ghClient, cfgAction)
+				if err != nil {
+					return nil, fmt.Errorf(
+						"rule %s: action %s: parsing failed: %w",
+						cfgRule.Name, actionName, err,
+					)
+				}
+
 				actions = append(actions, cfg)
 
 			default:
