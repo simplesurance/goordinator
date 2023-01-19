@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/go-github/v43/github"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -252,7 +252,7 @@ func (a *Autoupdater) eventLoop() {
 // Other events are ignored and a debug message is logged for those.
 func (a *Autoupdater) processEvent(ctx context.Context, event *github_prov.Event) {
 	defer func() {
-		a.processedEventCnt.Inc()
+		a.processedEventCnt.Add(1)
 		metrics.ProcessedEventsInc()
 	}()
 
