@@ -11,7 +11,7 @@ require (
 	github.com/prometheus/client_golang v1.12.1
 	github.com/shurcooL/githubv4 v0.0.0-20220115235240-a14260e6f8a2
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.8.1
 	github.com/sykesm/zap-logfmt v0.0.4
 	github.com/thecodeteam/goodbye v0.0.0-20170927022442-a83968bda2d3
 	go.uber.org/goleak v1.1.12
@@ -41,5 +41,5 @@ require (
 	golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
