@@ -84,8 +84,8 @@ github.com/sykesm/zap-logfmt
 # github.com/thecodeteam/goodbye v0.0.0-20170927022442-a83968bda2d3
 ## explicit
 github.com/thecodeteam/goodbye
-# go.uber.org/atomic v1.9.0
-## explicit; go 1.13
+# go.uber.org/atomic v1.10.0
+## explicit; go 1.18
 go.uber.org/atomic
 # go.uber.org/goleak v1.2.0
 ## explicit; go 1.18
