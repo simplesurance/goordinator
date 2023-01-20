@@ -29,7 +29,7 @@ type GithubClient interface {
 	UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, error)
 	CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error
 	ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator
-	ReadyForMergeStatus(ctx context.Context, owner, repo string, prNumber int) (*githubclt.PRStatus, error)
+	ReadyForMerge(ctx context.Context, owner, repo string, prNumber int) (*githubclt.ReadyForMergeStatus, error)
 }
 
 // Retryer defines methods for running GithubClient operations repeately if

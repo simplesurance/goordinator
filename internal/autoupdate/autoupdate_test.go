@@ -99,23 +99,23 @@ func mockSuccesssfulCreateIssueCommentCall(clt *mocks.MockGithubClient, expected
 }
 
 type mergeStatusMock struct {
-	githubclt.PRStatus
+	githubclt.ReadyForMergeStatus
 	*gomock.Call
 }
 
-func mockReadyForMergeStatus(clt *mocks.MockGithubClient, prNumber int, reviewDecision, checkState string) *mergeStatusMock {
+func mockReadyForMergeStatus(clt *mocks.MockGithubClient, prNumber int, reviewDecision githubclt.ReviewDecision, checkState githubclt.CIStatus) *mergeStatusMock {
 	res := mergeStatusMock{
-		PRStatus: githubclt.PRStatus{
-			ReviewDecision:         reviewDecision,
-			StatusCheckRollupState: checkState,
+		ReadyForMergeStatus: githubclt.ReadyForMergeStatus{
+			ReviewDecision: reviewDecision,
+			CIStatus:       checkState,
 		},
 	}
 
 	mockCall := clt.
 		EXPECT().
-		ReadyForMergeStatus(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(prNumber)).
-		DoAndReturn(func(_ context.Context, owner, repo string, prNumber int) (*githubclt.PRStatus, error) {
-			return &res.PRStatus, nil
+		ReadyForMerge(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(prNumber)).
+		DoAndReturn(func(_ context.Context, owner, repo string, prNumber int) (*githubclt.ReadyForMergeStatus, error) {
+			return &res.ReadyForMergeStatus, nil
 		})
 
 	res.Call = mockCall
@@ -204,7 +204,7 @@ func TestEnqueueDequeue(t *testing.T) {
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
-	mockReadyForMergeStatus(ghClient, pr.Number, githubclt.ReviewDecisionApproved, githubclt.StatusStatePending).AnyTimes()
+	mockReadyForMergeStatus(ghClient, pr.Number, githubclt.ReviewDecisionApproved, githubclt.CIStatusPending).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -251,7 +251,7 @@ func TestSuspendAndResume(t *testing.T) {
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
 	mockReadyForMergeStatus(
 		ghClient, pr.Number,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
@@ -308,7 +308,7 @@ func TestPushToPRBranchResumesPR(t *testing.T) {
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
 	mockReadyForMergeStatus(
 		ghClient, pr.Number,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
@@ -363,7 +363,7 @@ func TestPushToBaseBranchTriggersUpdate(t *testing.T) {
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).Times(2)
 	mockReadyForMergeStatus(
 		ghClient, pr.Number,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
@@ -409,7 +409,7 @@ func TestPushToBaseBranchResumesPRs(t *testing.T) {
 
 	mockReadyForMergeStatus(
 		ghClient, prNumber,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 	mockFailedGithubUpdateBranchCall(ghClient, prNumber)
 	mockSuccesssfulCreateIssueCommentCall(ghClient, prNumber)
@@ -461,7 +461,7 @@ func TestPRBaseBranchChangeMovesItToAnotherQueue(t *testing.T) {
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(2)
 	mockReadyForMergeStatus(
 		ghClient, prNumber,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
@@ -519,7 +519,7 @@ func TestUnlabellingPRDequeuesPR(t *testing.T) {
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
 	mockReadyForMergeStatus(
 		ghClient, prNumber,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).Times(1)
 
 	retryer := goordinator.NewRetryer()
@@ -568,7 +568,7 @@ func TestClosingPRDequeuesPR(t *testing.T) {
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
 	mockReadyForMergeStatus(
 		ghClient, prNumber,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
@@ -681,19 +681,19 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 
 			mergeStatusPr1 := mockReadyForMergeStatus(
 				ghClient, 1,
-				githubclt.ReviewDecisionApproved, githubclt.StatusStateFailure,
+				githubclt.ReviewDecisionApproved, githubclt.CIStatusFailure,
 			)
 			mergeStatusPr1.AnyTimes()
 
 			mergeStatusPr2 := mockReadyForMergeStatus(
 				ghClient, 2,
-				githubclt.ReviewDecisionApproved, githubclt.StatusStateFailure,
+				githubclt.ReviewDecisionApproved, githubclt.CIStatusFailure,
 			)
 			mergeStatusPr2.AnyTimes()
 
 			mergeStatusPr3 := mockReadyForMergeStatus(
 				ghClient, 3,
-				githubclt.ReviewDecisionApproved, githubclt.StatusStateFailure,
+				githubclt.ReviewDecisionApproved, githubclt.CIStatusFailure,
 			)
 			mergeStatusPr3.AnyTimes()
 
@@ -740,9 +740,9 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 			assert.Equal(t, 0, queueBaseBranch2.activeLen(), "active queue")
 			assert.Equal(t, 1, queueBaseBranch2.suspendedLen(), "suspend queue")
 
-			mergeStatusPr1.StatusCheckRollupState = githubclt.StatusStateSuccess
-			mergeStatusPr2.StatusCheckRollupState = githubclt.StatusStateSuccess
-			mergeStatusPr3.StatusCheckRollupState = githubclt.StatusStateSuccess
+			mergeStatusPr1.CIStatus = githubclt.CIStatusSuccess
+			mergeStatusPr2.CIStatus = githubclt.CIStatusSuccess
+			mergeStatusPr3.CIStatus = githubclt.CIStatusSuccess
 
 			evChan <- tc.newResumeEventFn(pr1.Branch, pr2.Branch, pr3.Branch)
 
@@ -819,19 +819,19 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 
 			mergeStatusPr1 := mockReadyForMergeStatus(
 				ghClient, 1,
-				githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+				githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 			)
 			mergeStatusPr1.AnyTimes()
 
 			mergeStatusPr2 := mockReadyForMergeStatus(
 				ghClient, 2,
-				githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+				githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 			)
 			mergeStatusPr2.AnyTimes()
 
 			mergeStatusPr3 := mockReadyForMergeStatus(
 				ghClient, 3,
-				githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+				githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 			)
 			mergeStatusPr3.AnyTimes()
 
@@ -883,8 +883,8 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 			waitForActiveQueueLen(t, queueBaseBranch2, 1)
 			assert.Equal(t, 0, queueBaseBranch2.suspendedLen(), "suspend queue")
 
-			mergeStatusPr1.StatusCheckRollupState = githubclt.StatusStateFailure
-			mergeStatusPr3.StatusCheckRollupState = githubclt.StatusStateFailure
+			mergeStatusPr1.CIStatus = githubclt.CIStatusFailure
+			mergeStatusPr3.CIStatus = githubclt.CIStatusFailure
 			evChan <- tc.newResumeEventFn(pr1.Branch, pr2.Branch, pr3.Branch)
 
 			waitForSuspendQueueLen(t, queueBaseBranch1, 1)
@@ -911,7 +911,7 @@ func TestPRIsSuspendedWhenStatusIsStuck(t *testing.T) {
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).MinTimes(2)
 	mockReadyForMergeStatus(
 		ghClient, 1,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).MinTimes(2)
 
 	retryer := goordinator.NewRetryer()
@@ -1000,7 +1000,7 @@ func TestPRIsSuspendedWhenUptodateAndHasFailedStatus(t *testing.T) {
 
 			mockReadyForMergeStatus(
 				ghClient, 1,
-				githubclt.ReviewDecisionApproved, githubclt.StatusStateError,
+				githubclt.ReviewDecisionApproved, githubclt.CIStatusFailure,
 			).AnyTimes()
 
 			retryer := goordinator.NewRetryer()
@@ -1042,7 +1042,7 @@ func TestEnqueueDequeueByAutomergeEvents(t *testing.T) {
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
 	mockReadyForMergeStatus(
 		ghClient, 1,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
@@ -1096,11 +1096,11 @@ func TestInitialSync(t *testing.T) {
 
 	mockReadyForMergeStatus(
 		ghClient, 1,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 	mockReadyForMergeStatus(
 		ghClient, 4,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 
 	prAutoMergeEnabled := newBasicPullRequest(1, "main", "pr1")
@@ -1179,7 +1179,7 @@ func TestFirstPRInQueueIsUpdatedPeriodically(t *testing.T) {
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(2)
 	mockReadyForMergeStatus(
 		ghClient, prNumber,
-		githubclt.ReviewDecisionApproved, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 
 	retryer := goordinator.NewRetryer()
@@ -1224,7 +1224,7 @@ func TestReviewApprovedEventResumesSuspendedPR(t *testing.T) {
 	mockStatusReturn := mockReadyForMergeStatus(
 		ghClient, prNumber,
 		githubclt.ReviewDecisionChangesRequested,
-		githubclt.StatusStateSuccess,
+		githubclt.CIStatusSuccess,
 	)
 	mockStatusReturn.AnyTimes()
 
@@ -1274,7 +1274,7 @@ func TestDismissingApprovalSuspendsActivePR(t *testing.T) {
 	mockStatusReturn := mockReadyForMergeStatus(
 		ghClient, prNumber,
 		githubclt.ReviewDecisionApproved,
-		githubclt.StatusStatePending,
+		githubclt.CIStatusPending,
 	)
 	mockStatusReturn.AnyTimes()
 
@@ -1326,7 +1326,7 @@ func TestRequestingReviewChangesSuspendsPR(t *testing.T) {
 	mockStatusReturn := mockReadyForMergeStatus(
 		ghClient, prNumber,
 		githubclt.ReviewDecisionApproved,
-		githubclt.StatusStatePending,
+		githubclt.CIStatusPending,
 	)
 	mockStatusReturn.AnyTimes()
 
@@ -1377,7 +1377,7 @@ func TestUpdatesAreResumeIfTestsFailAndBaseIsUpdated(t *testing.T) {
 	mockReadyForMergeStatus(
 		ghClient, prNumber,
 		githubclt.ReviewDecisionApproved,
-		githubclt.StatusStateFailure,
+		githubclt.CIStatusFailure,
 	).Times(2)
 	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).Times(1)
 
