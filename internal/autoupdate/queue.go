@@ -497,8 +497,9 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	}
 
 	logger = logger.With(
-		logfields.ReviewDecision(status.ReviewDecision),
-		logfields.StatusCheckRollupState(status.StatusCheckRollupState),
+		logfields.ReviewDecision(string(status.ReviewDecision)),
+		logfields.CIStatusSummary(string(status.CIStatus)),
+		zap.Any("github.ci_statuses", status.Statuses),
 	)
 
 	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
@@ -651,22 +652,20 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		zap.Duration("stale_timeout", q.staleTimeout),
 	)
 
-	logger = logger.With(logfields.StatusCheckRollupState(status.StatusCheckRollupState))
-
-	switch status.StatusCheckRollupState {
-	case githubclt.StatusStateSuccess:
+	switch status.CIStatus {
+	case githubclt.CIStatusSuccess:
 		logger.Info(
 			"pull request is uptodate, approved and status checks are successful",
 			logfields.Event("pr_ready_to_merge"),
 		)
 
-	case "", githubclt.StatusStatePending, githubclt.StatusStateExpected:
+	case githubclt.CIStatusPending:
 		logger.Info(
 			"pull request is uptodate, approved and status checks are pending",
 			logfields.Event("pr_status_pending"),
 		)
 
-	case githubclt.StatusStateError, githubclt.StatusStateFailure:
+	case githubclt.CIStatusFailure:
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
 				"suspending PR because it's PR status is negative, failed",
@@ -685,7 +684,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	default:
 		logger.Warn(
-			"pull request status check rollup state has unexpected value, suspending autoupdates for PR",
+			"pull request ci status has unexpected value, suspending autoupdates for PR",
 			logfields.Event("pr_status_check_rollup_state_invalid"),
 		)
 
@@ -712,8 +711,8 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 // it failed with a retryable error.
 // The method blocks until the request was successful, a non-retryable error
 // happened or the context expired.
-func (q *queue) prReadyForMergeStatus(ctx context.Context, pr *PullRequest) (*githubclt.PRStatus, error) {
-	var status *githubclt.PRStatus
+func (q *queue) prReadyForMergeStatus(ctx context.Context, pr *PullRequest) (*githubclt.ReadyForMergeStatus, error) {
+	var status *githubclt.ReadyForMergeStatus
 
 	loggingFields := pr.LogFields
 
@@ -723,7 +722,7 @@ func (q *queue) prReadyForMergeStatus(ctx context.Context, pr *PullRequest) (*gi
 	err := q.retryer.Run(ctx, func(ctx context.Context) error {
 		var err error
 
-		status, err = q.ghClient.ReadyForMergeStatus(
+		status, err = q.ghClient.ReadyForMerge(
 			ctx,
 			q.baseBranch.RepositoryOwner,
 			q.baseBranch.Repository,
@@ -826,8 +825,8 @@ func (q *queue) resumeIfPRMergeStatusPositive(ctx context.Context, logger *zap.L
 
 	logger.Debug(
 		"retrieved ready-to-merge-status",
-		logfields.ReviewDecision(status.ReviewDecision),
-		logfields.StatusCheckRollupState(status.StatusCheckRollupState),
+		logfields.ReviewDecision(string(status.ReviewDecision)),
+		logfields.CIStatusSummary(string(status.CIStatus)),
 	)
 
 	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
@@ -835,8 +834,8 @@ func (q *queue) resumeIfPRMergeStatusPositive(ctx context.Context, logger *zap.L
 		return nil
 	}
 
-	switch status.StatusCheckRollupState {
-	case "", githubclt.StatusStateExpected, githubclt.StatusStatePending, githubclt.StatusStateSuccess:
+	switch status.CIStatus {
+	case githubclt.CIStatusSuccess, githubclt.CIStatusPending:
 		if err := q.Resume(pr.Number); err != nil {
 			return fmt.Errorf("resuming updates failed: %w", err)
 		}

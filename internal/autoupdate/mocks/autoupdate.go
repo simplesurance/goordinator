@@ -64,19 +64,19 @@ func (mr *MockGithubClientMockRecorder) ListPullRequests(ctx, owner, repo, state
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPullRequests", reflect.TypeOf((*MockGithubClient)(nil).ListPullRequests), ctx, owner, repo, state, sort, sortDirection)
 }
 
-// ReadyForMergeStatus mocks base method.
-func (m *MockGithubClient) ReadyForMergeStatus(ctx context.Context, owner, repo string, prNumber int) (*githubclt.PRStatus, error) {
+// ReadyForMerge mocks base method.
+func (m *MockGithubClient) ReadyForMerge(ctx context.Context, owner, repo string, prNumber int) (*githubclt.ReadyForMergeStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadyForMergeStatus", ctx, owner, repo, prNumber)
-	ret0, _ := ret[0].(*githubclt.PRStatus)
+	ret := m.ctrl.Call(m, "ReadyForMerge", ctx, owner, repo, prNumber)
+	ret0, _ := ret[0].(*githubclt.ReadyForMergeStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReadyForMergeStatus indicates an expected call of ReadyForMergeStatus.
-func (mr *MockGithubClientMockRecorder) ReadyForMergeStatus(ctx, owner, repo, prNumber interface{}) *gomock.Call {
+// ReadyForMerge indicates an expected call of ReadyForMerge.
+func (mr *MockGithubClientMockRecorder) ReadyForMerge(ctx, owner, repo, prNumber interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadyForMergeStatus", reflect.TypeOf((*MockGithubClient)(nil).ReadyForMergeStatus), ctx, owner, repo, prNumber)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadyForMerge", reflect.TypeOf((*MockGithubClient)(nil).ReadyForMerge), ctx, owner, repo, prNumber)
 }
 
 // UpdateBranch mocks base method.
