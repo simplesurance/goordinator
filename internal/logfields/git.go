@@ -26,6 +26,10 @@ func StatusCheckRollupState(val string) zap.Field {
 	return zap.String("github.status_check_rollup_state", val)
 }
 
+func CIStatusSummary(val string) zap.Field {
+	return zap.String("github.ci_status_summary", val)
+}
+
 func CheckConclusion(val string) zap.Field {
 	return zap.String("github.check_conclusion", val)
 }

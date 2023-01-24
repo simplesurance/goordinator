@@ -28,12 +28,12 @@ func (c *DryGithubClient) UpdateBranch(ctx context.Context, owner, repo string, 
 	return false, nil
 }
 
-func (c *DryGithubClient) ReadyForMergeStatus(ctx context.Context, owner, repo string, prNumber int) (*githubclt.PRStatus, error) {
+func (c *DryGithubClient) ReadyForMerge(ctx context.Context, owner, repo string, prNumber int) (*githubclt.ReadyForMergeStatus, error) {
 	c.logger.Info("simulated fetching ready for merge status, pr is approved, all checks successful")
 
-	return &githubclt.PRStatus{
-		ReviewDecision:         githubclt.ReviewDecisionApproved,
-		StatusCheckRollupState: githubclt.StatusStateSuccess,
+	return &githubclt.ReadyForMergeStatus{
+		ReviewDecision: githubclt.ReviewDecisionApproved,
+		CIStatus:       githubclt.CIStatusSuccess,
 	}, nil
 }
 

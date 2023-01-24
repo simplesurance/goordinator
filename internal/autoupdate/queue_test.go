@@ -33,7 +33,7 @@ func TestUpdatePR_DoesNotCallBaseBranchUpdateIfPRIsNotApproved(t *testing.T) {
 
 	mockReadyForMergeStatus(
 		ghClient, pr.Number,
-		githubclt.ReviewDecisionChangesRequested, githubclt.StatusStatePending,
+		githubclt.ReviewDecisionChangesRequested, githubclt.CIStatusPending,
 	).AnyTimes()
 	ghClient.EXPECT().UpdateBranch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
