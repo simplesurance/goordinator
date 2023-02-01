@@ -6,7 +6,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/google/go-github/v43 v43.0.0
-	github.com/itchyny/gojq v0.12.7
+	github.com/itchyny/gojq v0.12.11
 	github.com/pelletier/go-toml v1.9.5
 	github.com/prometheus/client_golang v1.14.0
 	github.com/shurcooL/githubv4 v0.0.0-20220115235240-a14260e6f8a2
@@ -26,7 +26,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
-	github.com/itchyny/timefmt-go v0.1.3 // indirect
+	github.com/itchyny/timefmt-go v0.1.5 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
@@ -38,7 +38,7 @@ require (
 	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/net v0.0.0-20220325170049-de3da57026de // indirect
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
+	golang.org/x/sys v0.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
