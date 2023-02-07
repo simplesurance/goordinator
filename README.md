@@ -25,10 +25,9 @@ Updates for the PR branch are suspended when:
 
 - the base-branch can not be merged into the PR branch because of a
   merge-conflict,
-- a negative GitHub status or check run state is reported or
+- a negative GitHub check or commit status for a required check is reported or
 - it became stale, when it is update, approved and no check or status state has
-  been reported for a longer
-  time period.
+  been reported for a longer time period.
 
 Updates for it are resumed when:
 - the PR or its base branch changed
@@ -39,6 +38,8 @@ feature](https://docs.github.com/en/github/collaborating-with-pull-requests/inco
 or a comparable service to provide a serialized merge-queue.
 The autoupdater serializes updates per base branch, to avoid a race between
 pull requests to get updates the fastest and have a successful CI check first.
+The autoupdater honors the required status checks configured as branch
+protection rules.
 
 Without an external auto-merge service the autoupdater is useless.
 

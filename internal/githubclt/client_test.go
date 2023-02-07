@@ -31,7 +31,7 @@ func TestWrapRetryableErrorsGraphql(t *testing.T) {
 		graphQLClt: githubv4.NewEnterpriseClient(srv.URL, srv.Client()),
 	}
 
-	s, err := clt.ReadyForMergeStatus(context.Background(), "test", "test", 123)
+	s, err := clt.ReadyForMerge(context.Background(), "test", "test", 123)
 	require.Error(t, err)
 	assert.Nil(t, s)
 

@@ -12,19 +12,20 @@
 // GitHub API.
 // When a webhook event for an enqueue condition is received, the pull request
 // is enqueued for autoupdates.
-// When all Status Checks succeed for the PR, it is uptodate with it's base
-// branch and all configured mandatory PR reviewers approved, the auto-merge
-// feature will merge the PR into it's base branch.
+// When all required Status Checks succeed for the PR, it is uptodate with it's
+// base branch and all configured mandatory PR reviewers approved, the
+// auto-merge feature will merge the PR into it's base branch.
 // Per base-branch, the autoupdater updates automatically the first PR in the
 // queue with it's base branch. It serializes updating per basebranch, to avoid
-// a race between multiples pull requests that result in unnecessary CI runs and merges.
+// a race between multiples pull requests that result in unnecessary CI runs and
+// merges.
 // When updating a pull request branch with it's base-branch is not possible,
 // a failed status check for the pull request was reported, or the PR became
 // stale updates for it are suspended.
 // This prevents that pull requests that can not be merged block the autoupdate
 // fifo-queue.
-// When a webhook event is received about a positive status check report, the base
-// branch or the pull request branch changed, updates will be resumed.
+// When a webhook event is received about a positive status check report, the
+// base branch or the pull request branch changed, updates will be resumed.
 // The pull request will be enqueued in the fifo list for updates again.
 //
 // pull requests are removed from the autoupdate queue, when it was closed, or
