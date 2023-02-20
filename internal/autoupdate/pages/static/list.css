@@ -36,7 +36,6 @@ table#queue-table th {
 }
 
 table#queue-table tr:nth-child(odd) {
-  background-color: #e0e0e0;
 }
 
 table#queue-table tr.active-prs {
