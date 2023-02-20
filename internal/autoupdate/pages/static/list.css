@@ -47,42 +47,45 @@ table#queue-table tr.suspended-prs {
   background-color: #cccccc;
 }
 
-table#table-queue td {
+table#queue-table td {
   padding: 5px;
   overflow: hidden;
 }
 
-table#table-queue td.rank {
+table#queue-table th.rank, table#queue-table td.rank {
   width: 50px;
 }
 
-table#table-queue td.pr {
+table#queue-table th.pr, table#queue-table td.pr {
   width: auto;
   word-break: break-all;
 }
 
-table#table-queue td.author {
+table#queue-table th.author, table#queue-table td.author {
   width: 200px;
 }
 
-table#table-queue td.enqueue-ts {
+table#queue-table th.enqueue-ts, table#queue-table td.enqueue-ts {
   width: 250px;
 }
 
-table#table-queue td.status {
+table#queue-table th.status, table#queue-table td.status {
   width: 100px;
+}
+
+table#queue-table td.status {
   font-weight: bold;
 }
 
-table#table-queue td.status.status-updating {
+table#queue-table td.status.status-updating {
   color: #0eb200;
 }
 
-table#table-queue td.status.status-queued {
+table#queue-table td.status.status-queued {
   color: #E7C547;
 }
 
-table#table-queue td.status.status-suspended {
+table#queue-table td.status.status-suspended {
   color: #d63900;
 }
 
