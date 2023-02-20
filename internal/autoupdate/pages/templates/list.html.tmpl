@@ -63,7 +63,7 @@
       {{ range $queue := .Queues }}
         <section>
           <header>
-            <h3>Repository: {{ $queue.RepositoryOwner }}/{{ $queue.Repository }}, Base branch: {{ $queue.BaseBranch }}</h2>
+            <h3>Repository: {{ $queue.RepositoryOwner }}/{{ $queue.Repository }}, Base Branch: {{ $queue.BaseBranch }}</h2>
           </header>
 
           {{ if or $queue.ActivePRs $queue.SuspendedPRs }}
