@@ -54,7 +54,7 @@
     <header>
       <h2>Queues</h3>
     </header>
-    <div id="queue_content">
+    <div>
       {{ if not .Queues }}
         <section>
           No Pull-Requests enqueued.
@@ -63,42 +63,40 @@
       {{ range $queue := .Queues }}
         <section>
           <header>
-            <h3>Repository {{ $queue.RepositoryOwner }}/{{ $queue.Repository }}, BaseBranch: {{ $queue.BaseBranch }}</h2>
+            <h3>Repository: {{ $queue.RepositoryOwner }}/{{ $queue.Repository }}, Base branch: {{ $queue.BaseBranch }}</h2>
           </header>
 
           {{ if or $queue.ActivePRs $queue.SuspendedPRs }}
-            <table class="queue_table">
+            <table id="queue-table">
               <tr>
-                <th>Rank</th>
-                <th>Pull Request</th>
-                <th>Author</th>
-                <th>Ready for Updates Since</th>
-                <th>Status</th>
+                <th class="rank">Rank</th>
+                <th class="pr">Pull Request</th>
+                <th class="author">Author</th>
+                <th class="enqueue-ts">Ready for Updates Since</th>
+                <th class="status">Status</th>
               </tr>
-                {{ range $i, $pr := $queue.ActivePRs }}
-                  <tr class="tr_active_prs">
-                  <td >{{ add $i 1 }}</td>
-                  <td>
+              {{ range $i, $pr := $queue.ActivePRs }}
+                <tr class="active-prs">
+                  <td class="rank">{{ add $i 1 }}</td>
+                  <td class="pr">
                     <a href="{{ $pr.Link }} ">{{ $pr.Title }} (#{{ $pr.Number }})</a>
                   </td>
-                  <td>{{ $pr.Author}}</td>
-                  <td>{{ $pr.EnqueuedSince.Format "2006-01-02 15:04:05 MST" }}</td>
-                  {{ if eq $i 0 }}
-                    <td id="td_status_updating">Updating</td>
-                  {{ else }}
-                    <td class="td_status_queued">Queued</td>
-                  {{ end }}
+                  <td class="author">{{ $pr.Author}}</td>
+                  <td class="enqueue-ts">{{ $pr.EnqueuedSince.Format "2006-01-02 15:04:05 MST" }}</td>
+                  <td class="status {{ if eq $i 0 }}status-updating{{ else }}status-queued{{ end }}">
+                    {{ if eq $i 0 }}Updating{{ else }}Queued{{ end }}
+                  </td>
                 </tr>
               {{ end }}
               {{ range $i, $pr := $queue.SuspendedPRs }}
-                <tr class="tr_suspended_prs">
-                  <td></td>
-                  <td>
+                <tr class="suspended-prs">
+                  <td class="rank"></td>
+                  <td class="pr">
                     <a href="{{ $pr.Link }} ">{{ $pr.Title }} (#{{ $pr.Number }})</a>
                   </td>
-                  <td>{{ $pr.Author}}</td>
-                  <td></td>
-                  <td class="td_status_suspended">Suspended</td>
+                  <td class="author">{{ $pr.Author}}</td>
+                  <td class"enqueue-ts"></td>
+                  <td class="status status-suspended">Suspended</td>
                 </tr>
               {{ end }}
             </table>

@@ -6,7 +6,6 @@ p {
 body {
   background-color: #FAFAFA;
   color: black;
-
 }
 
 a {
@@ -16,49 +15,78 @@ a {
 }
 
 body {
-  font-family:  ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
   line-height: 1.2;
 }
 
-table[class="queue_table"] {
+table#queue-table {
   border: 1px solid #D9D7CE;
-  width: 80ch;
+  width: 100%;
+  table-layout: fixed;
   font-size: 1.1em;
   background-color: #eeeeee;
   padding: 5px;
   text-align: left;
 }
 
-table[class="queue_table"] th {
+table#queue-table th {
   border: 10px solid black;
   background-color: black;
   color: white;
 }
 
+table#queue-table tr:nth-child(odd) {
+  background-color: #e0e0e0;
+}
 
-table tr[class="tr_active_prs"] {
+table#queue-table tr.active-prs {
   background-color: #eeeeee;
 }
 
-table tr[class="tr_suspended_prs"] {
-  background-color: #cccccc ;
+table#queue-table tr.suspended-prs {
+  background-color: #cccccc;
 }
 
-table td[id="td_status_updating"] {
-  color: #0eb200;
+table#table-queue td {
+  padding: 5px;
+  overflow: hidden;
+}
+
+table#table-queue td.rank {
+  width: 50px;
+}
+
+table#table-queue td.pr {
+  width: auto;
+  word-break: break-all;
+}
+
+table#table-queue td.author {
+  width: 200px;
+}
+
+table#table-queue td.enqueued-ts {
+  width: 250px;
+}
+
+table#table-queue td.status {
+  width: 100px;
   font-weight: bold;
 }
 
-table td[class="td_status_queued"] {
+table#table-queue td.status.status-updating {
+  color: #0eb200;
+}
+
+table#table-queue td.status.status-queued {
   color: #E7C547;
-  font-weight:bold;
 }
 
-table td[class="td_status_suspended"] {
+table#table-queue td.status.status-suspended {
   color: #d63900;
-  font-weight:bold;
 }
 
-div[id="explanation"] {
+
+div#explanation {
   margin-top: 100px;
 }
