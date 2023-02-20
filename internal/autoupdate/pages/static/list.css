@@ -65,7 +65,7 @@ table#table-queue td.author {
   width: 200px;
 }
 
-table#table-queue td.enqueued-ts {
+table#table-queue td.enqueue-ts {
   width: 250px;
 }
 
