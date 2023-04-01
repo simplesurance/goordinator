@@ -6,7 +6,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/google/go-github/v43 v43.0.0
-	github.com/itchyny/gojq v0.12.11
+	github.com/itchyny/gojq v0.12.12
 	github.com/pelletier/go-toml v1.9.5
 	github.com/prometheus/client_golang v1.14.0
 	github.com/shurcooL/githubv4 v0.0.0-20220115235240-a14260e6f8a2
