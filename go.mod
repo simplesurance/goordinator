@@ -15,12 +15,11 @@ require (
 	github.com/sykesm/zap-logfmt v0.0.4
 	github.com/thecodeteam/goodbye v0.0.0-20170927022442-a83968bda2d3
 	go.uber.org/goleak v1.2.1
-	go.uber.org/zap v1.25.0
+	go.uber.org/zap v1.26.0
 	golang.org/x/oauth2 v0.11.0
 )
 
 require (
-	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
