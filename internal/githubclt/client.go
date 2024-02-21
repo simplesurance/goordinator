@@ -160,6 +160,8 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	)
 
 	if isUptodate {
+		logger.Debug("branch is uptodate with base branch, skipping running update branch operation",
+			logfields.Event("github_branch_uptodate_with_base"))
 		return false, nil
 	}
 
@@ -172,6 +174,8 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 			// If this should be the case, we could wait a
 			// bit, iterate again and check if the PR is
 			// now uptodate.
+			logger.Debug("updating branch with base branch scheduled",
+				logfields.Event("github_branch_update_with_base_scheduled"))
 			return true, nil
 		}
 
@@ -195,6 +199,8 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 		return false, clt.wrapRetryableErrors(err)
 	}
 
+	logger.Debug("branch was updated with base branch",
+		logfields.Event("github_branch_update_with_base_triggered"))
 	// github seems to always schedule update operations and return an
 	// AcceptedError, this condition might never happened
 	return true, nil
