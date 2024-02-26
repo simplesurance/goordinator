@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/simplesurance/goordinator/internal/autoupdate/orderedmap"
 	"github.com/simplesurance/goordinator/internal/autoupdate/routines"
 	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/logfields"
@@ -41,7 +42,7 @@ type queue struct {
 	baseBranch BaseBranch
 
 	// active contains pull requests enqueued for being kept uptodate
-	active *orderedMap
+	active *orderedmap.Map[int, *PullRequest]
 	// suspended contains pull requests that are not kept uptodate
 	suspended map[int]*PullRequest
 	lock      sync.Mutex
@@ -77,7 +78,7 @@ type queue struct {
 func newQueue(base *BaseBranch, logger *zap.Logger, ghClient GithubClient, retryer Retryer) *queue {
 	q := queue{
 		baseBranch:   *base,
-		active:       newOrderedMap(),
+		active:       orderedmap.New[int, *PullRequest](),
 		suspended:    map[int]*PullRequest{},
 		logger:       logger.Named("queue").With(base.Logfields...),
 		ghClient:     ghClient,
@@ -196,7 +197,7 @@ func (q *queue) _enqueueActive(pr *PullRequest) error {
 
 	q.metrics.ActiveQueueSizeInc()
 
-	if newFirstElemen == nil {
+	if !newFirstElemen {
 		q.logger.Debug(
 			"pull request appended to active queue",
 			logfields.Event("pull_request_enqueued"),
@@ -210,7 +211,7 @@ func (q *queue) _enqueueActive(pr *PullRequest) error {
 		logfields.Event("pull_request_enqueued"),
 	)
 
-	q.scheduleUpdate(context.Background(), newFirstElemen)
+	q.scheduleUpdate(context.Background(), pr)
 
 	return nil
 }
@@ -243,12 +244,18 @@ func (q *queue) _dequeueSuspended(prNumber int) (*PullRequest, error) {
 }
 
 func (q *queue) _dequeueActive(prNumber int) (removedPR *PullRequest, newFirstPr *PullRequest) {
-	pr, newFirstElem := q.active.Dequeue(prNumber)
+	oldFirst := q.active.First()
+	pr := q.active.Dequeue(prNumber)
 	if pr != nil {
 		q.metrics.ActiveQueueSizeDec()
 	}
 
-	return pr, newFirstElem
+	newFirst := q.active.First()
+	if oldFirst != newFirst {
+		return pr, newFirst
+	}
+
+	return pr, nil
 }
 
 // Dequeue removes the pull request with the given number from the active or
@@ -886,7 +893,7 @@ func (q *queue) Stop() {
 
 	q.lock.Lock()
 	// empty the qeueues to prevent that more work is scheduled
-	q.active = newOrderedMap()
+	q.active = orderedmap.New[int, *PullRequest]()
 	q.suspended = map[int]*PullRequest{}
 	q.lock.Unlock()
 	if running := q.getExecuting(); running != nil {
