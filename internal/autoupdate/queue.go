@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/simplesurance/goordinator/internal/autoupdate/orderedmap"
 	"github.com/simplesurance/goordinator/internal/autoupdate/routines"
@@ -408,6 +409,12 @@ func (q *queue) FirstActive() *PullRequest {
 	return q.active.First()
 }
 
+// isFirstActive returns true if pr is the first one in the active queue.
+func (q *queue) isFirstActive(pr *PullRequest) bool {
+	first := q.FirstActive()
+	return first != nil && first.Number == pr.Number
+}
+
 // ScheduleUpdate schedules updating the first pull request in the queue.
 func (q *queue) ScheduleUpdate(ctx context.Context) {
 	first := q.FirstActive()
@@ -425,7 +432,6 @@ func (q *queue) scheduleUpdate(ctx context.Context, pr *PullRequest) {
 		defer cancelFunc()
 
 		q.setExecuting(&runningTask{pr: pr.Number, cancelFunc: cancelFunc})
-
 		q.updatePR(ctx, pr)
 	})
 
@@ -475,8 +481,6 @@ func (q *queue) isPRStale(pr *PullRequest) bool {
 // and it is the first element in the queue longer then q.staleTimeout it is
 // suspended.
 func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
-	var branchChanged bool
-
 	loggingFields := pr.LogFields
 	logger := q.logger.With(loggingFields...)
 
@@ -487,6 +491,23 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	defer func() { q.setLastRun(time.Now()) }()
 
 	pr.SetStateUnchangedSinceIfZero(time.Now())
+
+	if err := ctx.Err(); err != nil {
+		logger.Debug(
+			"skipping update",
+			zap.Error(err), logEventUpdateSkipped,
+		)
+
+		return
+	}
+
+	if !q.isFirstActive(pr) {
+		logger.Debug(
+			"skipping update , pull request is not first in queue",
+			logEventUpdateSkipped,
+		)
+		return
+	}
 
 	ctx, cancelFunc := context.WithTimeout(ctx, retryTimeout)
 	defer cancelFunc()
@@ -532,92 +553,9 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	logger.Debug("pr is approved")
 
-	baseBranchUpdateErr := q.retryer.Run(ctx, func(ctx context.Context) error {
-		var err error
-		branchChanged, err = q.ghClient.UpdateBranch(
-			ctx,
-			q.baseBranch.RepositoryOwner,
-			q.baseBranch.Repository,
-			pr.Number,
-		)
-		return err
-	},
-		loggingFields,
-	)
-
-	if baseBranchUpdateErr != nil {
-		if isPRIsClosedErr(baseBranchUpdateErr) {
-			logger.Info(
-				"updating branch with base branch failed, pull request is closed, removing PR from queue",
-				logfields.Event("branch_update_failed"),
-				zap.Error(baseBranchUpdateErr),
-			)
-
-			if _, err := q.Dequeue(pr.Number); err != nil {
-				logger.Error(
-					"removing pr from queue after failed update failed",
-					logfields.Event("branch_update_failed"),
-					zap.Error(err),
-				)
-				return
-			}
-
-			logger.Info(
-				"pull request dequeued for updates",
-				logEventDequeued,
-				logReasonPRClosed,
-			)
-
-			return
-		}
-
-		if errors.Is(baseBranchUpdateErr, context.Canceled) {
-			logger.Debug(
-				"updating branch with base branch was cancelled",
-				logfields.Event("branch_update_cancelled"),
-			)
-
-			return
-		}
-
-		// use a new context, otherwise it is forwarded for an
-		// action on another branch, and cancelling action for
-		// one branch, would cancel multiple others
-		if err := q.Suspend(pr.Number); err != nil {
-			logger.Error(
-				"suspending PR after branch update failed, failed",
-				logfields.Event("suspending_pr_updates_failed"),
-				zap.Error(err),
-			)
-			return
-		}
-
-		logger.Info(
-			"updates suspended, updating pr branch with base branch failed",
-			logFieldReason("update_with_branch_failed"),
-			logEventUpdatesSuspended,
-			zap.Error(baseBranchUpdateErr),
-		)
-
-		// the current ctx got cancelled in q.Suspend(), use
-		// another context to prevent that posting the comment
-		// gets cancelled, use a shorter timeout to prevent that this
-		// operations blocks the queue unnecessary long, use a  shorter
-		// timeout to prevent that this operations blocks the queue
-		// unnecessary long
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancelFunc()
-		err := q.ghClient.CreateIssueComment(
-			ctx,
-			q.baseBranch.RepositoryOwner,
-			q.baseBranch.Repository,
-			pr.Number,
-			fmt.Sprintf("goordinator: automatic base-branch updates suspended, updating branch failed:\n```%s```", baseBranchUpdateErr.Error()),
-		)
-		if err != nil {
-			logger.Error("posting comment to github PR failed", zap.Error(err))
-		}
-
+	branchChanged, err := q.updatePRWithBase(ctx, pr, logger, loggingFields)
+	if err != nil {
+		// error is logged in q.updatePRIfNeeded
 		return
 	}
 
@@ -628,7 +566,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		)
 
 		pr.SetStateUnchangedSinceIfNewer(time.Now())
-
 		return
 	}
 
@@ -712,6 +649,96 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 			zap.Error(err),
 		)
 	}
+}
+
+func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *zap.Logger, loggingFields []zapcore.Field) (changed bool, updateBranchErr error) {
+	updateBranchErr = q.retryer.Run(ctx, func(ctx context.Context) error {
+		var err error
+		changed, err = q.ghClient.UpdateBranch(
+			ctx,
+			q.baseBranch.RepositoryOwner,
+			q.baseBranch.Repository,
+			pr.Number,
+		)
+		return err
+	}, loggingFields)
+
+	if updateBranchErr != nil {
+		if isPRIsClosedErr(updateBranchErr) {
+			logger.Info(
+				"updating branch with base branch failed, pull request is closed, removing PR from queue",
+				logfields.Event("branch_update_failed"),
+				zap.Error(updateBranchErr),
+			)
+
+			if _, err := q.Dequeue(pr.Number); err != nil {
+				logger.Error(
+					"removing pr from queue after failed update failed",
+					logfields.Event("branch_update_failed"),
+					zap.Error(err),
+				)
+				return false, errors.Join(updateBranchErr, err)
+			}
+
+			logger.Info(
+				"pull request dequeued for updates",
+				logEventDequeued,
+				logReasonPRClosed,
+			)
+
+			return false, updateBranchErr
+		}
+
+		if errors.Is(updateBranchErr, context.Canceled) {
+			logger.Debug(
+				"updating branch with base branch was cancelled",
+				logfields.Event("branch_update_cancelled"),
+			)
+
+			return false, updateBranchErr
+		}
+
+		// use a new context, otherwise it is forwarded for an
+		// action on another branch, and cancelling action for
+		// one branch, would cancel multiple others
+		if err := q.Suspend(pr.Number); err != nil {
+			logger.Error(
+				"suspending PR failed, after branch update also failed",
+				logfields.Event("suspending_pr_updates_failed"),
+				zap.Error(err),
+			)
+			return false, errors.Join(updateBranchErr, err)
+		}
+
+		logger.Info(
+			"updates suspended, updating pr branch with base branch failed",
+			logFieldReason("update_with_branch_failed"),
+			logEventUpdatesSuspended,
+			zap.Error(updateBranchErr),
+		)
+
+		// the current ctx got cancelled in q.Suspend(), use
+		// another context to prevent that posting the comment
+		// gets cancelled, use a shorter timeout to prevent that this
+		// operations blocks the queue unnecessary long, use a  shorter
+		// timeout to prevent that this operations blocks the queue
+		// unnecessary long
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancelFunc()
+		err := q.ghClient.CreateIssueComment(
+			ctx,
+			q.baseBranch.RepositoryOwner,
+			q.baseBranch.Repository,
+			pr.Number,
+			fmt.Sprintf("goordinator: automatic base-branch updates suspended, updating branch failed:\n```%s```", updateBranchErr.Error()),
+		)
+		if err != nil {
+			logger.Error("posting comment to github PR failed", zap.Error(err))
+		}
+
+		return false, errors.Join(updateBranchErr, err)
+	}
+	return changed, nil
 }
 
 // prReadyForMergeStatus runs GitHubClient.ReadyForMergeStatus() and retries if
