@@ -9,6 +9,7 @@ import (
 var (
 	logEventUpdatesSuspended = logfields.Event("updates_suspended")
 	logEventUpdatesResumed   = logfields.Event("updates_resumed")
+	logEventUpdateSkipped    = logfields.Event("update_skipped")
 
 	logEventEnqeued      = logfields.Event("enqueued")
 	logEventDequeued     = logfields.Event("dequeued")
