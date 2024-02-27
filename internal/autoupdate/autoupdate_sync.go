@@ -78,7 +78,7 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 		var pr *github.PullRequest
 
 		// TODO: use a lower timeout for the retries, otherwise we might get stuck here for too long on startup
-		err := a.retryer.Run(ctx, func(ctx context.Context) error {
+		err := a.retryer.Run(ctx, func(context.Context) error {
 			var err error
 			pr, err = it.Next()
 			return err

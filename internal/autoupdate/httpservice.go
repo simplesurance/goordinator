@@ -67,7 +67,7 @@ func (h *HTTPService) HandlerStaticFiles() http.Handler {
 	return http.FileServer(http.FS(subFs))
 }
 
-func (h *HTTPService) HandlerListFunc(respWr http.ResponseWriter, req *http.Request) {
+func (h *HTTPService) HandlerListFunc(respWr http.ResponseWriter, _ *http.Request) {
 	data := h.autoupdater.httpListData()
 
 	err := h.templates.ExecuteTemplate(respWr, "list.html.tmpl", data)

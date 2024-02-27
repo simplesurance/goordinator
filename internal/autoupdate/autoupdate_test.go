@@ -84,7 +84,7 @@ func mockFailedGithubUpdateBranchCall(clt *mocks.MockGithubClient, expectedPRNr 
 	return clt.
 		EXPECT().
 		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(expectedPRNr)).
-		DoAndReturn(func(_ context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
+		DoAndReturn(func(context.Context, string, string, int) (bool, error) {
 			return false, errors.New("error mocked by mockFailedGithubUpdateBranchCall")
 		})
 }
@@ -93,7 +93,7 @@ func mockSuccesssfulCreateIssueCommentCall(clt *mocks.MockGithubClient, expected
 	return clt.
 		EXPECT().
 		CreateIssueComment(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(expectedPRNr), gomock.Any()).
-		DoAndReturn(func(_ context.Context, owner, repo string, pullRequestNumber int, _ string) error {
+		DoAndReturn(func(context.Context, string, string, int, string) error {
 			return nil
 		})
 }
@@ -114,7 +114,7 @@ func mockReadyForMergeStatus(clt *mocks.MockGithubClient, prNumber int, reviewDe
 	mockCall := clt.
 		EXPECT().
 		ReadyForMerge(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(prNumber)).
-		DoAndReturn(func(_ context.Context, owner, repo string, prNumber int) (*githubclt.ReadyForMergeStatus, error) {
+		DoAndReturn(func(context.Context, string, string, int) (*githubclt.ReadyForMergeStatus, error) {
 			return &res.ReadyForMergeStatus, nil
 		})
 
@@ -674,7 +674,7 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 			ghClient.
 				EXPECT().
 				UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-				DoAndReturn(func(_ context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
+				DoAndReturn(func(context.Context, string, string, int) (bool, error) {
 					return false, nil
 				}).
 				MinTimes(3)
@@ -838,7 +838,7 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 			ghClient.
 				EXPECT().
 				UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-				DoAndReturn(func(_ context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
+				DoAndReturn(func(context.Context, string, string, int) (bool, error) {
 					return false, nil
 				}).
 				AnyTimes()

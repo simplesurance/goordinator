@@ -23,12 +23,12 @@ func NewDryGithubClient(clt GithubClient, logger *zap.Logger) *DryGithubClient {
 	}
 }
 
-func (c *DryGithubClient) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
+func (c *DryGithubClient) UpdateBranch(context.Context, string, string, int) (bool, error) {
 	c.logger.Info("simulated updating of github branch, returning is uptodate")
 	return false, nil
 }
 
-func (c *DryGithubClient) ReadyForMerge(ctx context.Context, owner, repo string, prNumber int) (*githubclt.ReadyForMergeStatus, error) {
+func (c *DryGithubClient) ReadyForMerge(context.Context, string, string, int) (*githubclt.ReadyForMergeStatus, error) {
 	c.logger.Info("simulated fetching ready for merge status, pr is approved, all checks successful")
 
 	return &githubclt.ReadyForMergeStatus{
@@ -37,7 +37,7 @@ func (c *DryGithubClient) ReadyForMerge(ctx context.Context, owner, repo string,
 	}, nil
 }
 
-func (c *DryGithubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error {
+func (c *DryGithubClient) CreateIssueComment(context.Context, string, string, int, string) error {
 	c.logger.Info("simulated creating of github issue comment, no comment created on github")
 	return nil
 }
