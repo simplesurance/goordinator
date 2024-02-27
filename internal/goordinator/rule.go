@@ -164,7 +164,7 @@ func renderFunc(event *Event) func(in string) (string, error) {
 }
 
 // TemplateActions templates the filter query of the rule for the specific event.
-func (r *Rule) TemplateActions(ctx context.Context, event *Event) ([]action.Runner, error) {
+func (r *Rule) TemplateActions(_ context.Context, event *Event) ([]action.Runner, error) {
 	result := make([]action.Runner, 0, len(r.actions))
 
 	for _, actionDef := range r.actions {

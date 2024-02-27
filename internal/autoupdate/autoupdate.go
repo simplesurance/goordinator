@@ -966,7 +966,7 @@ func (a *Autoupdater) processStatusEvent(ctx context.Context, logger *zap.Logger
 // If the pr is already enqueued a ErrAlreadyExists error is returned.
 //
 // If no queue for the baseBranch exist, it will be created.
-func (a *Autoupdater) Enqueue(ctx context.Context, baseBranch *BaseBranch, pr *PullRequest) error {
+func (a *Autoupdater) Enqueue(_ context.Context, baseBranch *BaseBranch, pr *PullRequest) error {
 	var q *queue
 	var exist bool
 
@@ -1004,7 +1004,7 @@ func (a *Autoupdater) Enqueue(ctx context.Context, baseBranch *BaseBranch, pr *P
 // If no pull request is queued with prNumber a ErrNotFound error is returned.
 //
 // If the pull request was the only element in the baseBranch queue, the queue is removed.
-func (a *Autoupdater) Dequeue(ctx context.Context, baseBranch *BaseBranch, prNumber int) (*PullRequest, error) {
+func (a *Autoupdater) Dequeue(_ context.Context, baseBranch *BaseBranch, prNumber int) (*PullRequest, error) {
 	var q *queue
 	var exist bool
 
@@ -1037,7 +1037,7 @@ func (a *Autoupdater) Dequeue(ctx context.Context, baseBranch *BaseBranch, prNum
 
 // ResumeAllForBaseBranch resumes updates for all Pull Requests that are based
 // on baseBranch and for which updates are currently suspended.
-func (a *Autoupdater) ResumeAllForBaseBranch(ctx context.Context, baseBranch *BaseBranch) {
+func (a *Autoupdater) ResumeAllForBaseBranch(_ context.Context, baseBranch *BaseBranch) {
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
 
@@ -1052,7 +1052,7 @@ func (a *Autoupdater) ResumeAllForBaseBranch(ctx context.Context, baseBranch *Ba
 // their branch name matches one of branchNames.
 // It returns a list of pull requests for which updates were suspended.
 func (a *Autoupdater) SuspendUpdates(
-	ctx context.Context,
+	_ context.Context,
 	owner string,
 	repo string,
 	branchNames []string,
@@ -1089,7 +1089,7 @@ func (a *Autoupdater) SuspendUpdates(
 // The method returns a list of branch names for that no queued PR could be
 // found.
 func (a *Autoupdater) SetPRStaleSinceIfNewerByBranch(
-	ctx context.Context,
+	_ context.Context,
 	owner, repo string,
 	branchNames []string,
 	updatedAt time.Time,
@@ -1113,7 +1113,7 @@ func (a *Autoupdater) SetPRStaleSinceIfNewerByBranch(
 // if it is newer then the current staleSince timestamp.
 // If the PR is not queued for autoupdates, ErrNotFound is returned.
 func (a *Autoupdater) SetPRStaleSinceIfNewer(
-	ctx context.Context,
+	_ context.Context,
 	baseBranch *BaseBranch,
 	prNumber int,
 	updatedAt time.Time,
@@ -1150,7 +1150,7 @@ func (a *Autoupdater) ResumeIfStatusPositive(ctx context.Context, owner, repo st
 // Resume resumes updates for a pull request.
 // If the pull request is not queued for updates and in suspended state
 // ErrNotFound is returned.
-func (a *Autoupdater) Resume(ctx context.Context, baseBranch *BaseBranch, prNumber int) error {
+func (a *Autoupdater) Resume(_ context.Context, baseBranch *BaseBranch, prNumber int) error {
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
 
