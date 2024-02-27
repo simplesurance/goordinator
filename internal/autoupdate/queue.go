@@ -738,6 +738,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 
 		return false, errors.Join(updateBranchErr, err)
 	}
+
 	return changed, nil
 }
 
