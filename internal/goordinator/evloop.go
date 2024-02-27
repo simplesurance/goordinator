@@ -83,7 +83,7 @@ func (e *EvLoop) Start() {
 
 			logger.Debug(
 				"evaluated result of matching event with rule",
-				logfields.Event("rule_match_result_evaluted"),
+				logfields.Event("rule_match_result_evaluated"),
 				zap.String("match_result", match.String()),
 			)
 
