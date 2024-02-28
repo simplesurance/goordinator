@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v43/github"
+	"github.com/google/go-github/v59/github"
 	"github.com/shurcooL/githubv4"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"

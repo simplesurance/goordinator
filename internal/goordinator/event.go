@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	go_github "github.com/google/go-github/v43/github"
+	go_github "github.com/google/go-github/v59/github"
 	"go.uber.org/zap"
 
 	"github.com/simplesurance/goordinator/internal/logfields"

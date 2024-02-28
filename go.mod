@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/google/go-github/v43 v43.0.0
+	github.com/google/go-github/v59 v59.0.0
 	github.com/itchyny/gojq v0.12.14
 	github.com/pelletier/go-toml v1.9.5
 	github.com/prometheus/client_golang v1.18.0
@@ -33,7 +33,6 @@ require (
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/shurcooL/graphql v0.0.0-20200928012149-18c5c3165e3a // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/net v0.20.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

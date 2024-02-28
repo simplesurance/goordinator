@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/go-github/v43/github"
+	"github.com/google/go-github/v59/github"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -740,7 +740,7 @@ func (a *Autoupdater) processPullRequestReviewEvent(ctx context.Context, logger 
 		logfields.PullRequest(prNumber),
 		zap.String("github.pull_request.review.state", reviewState),
 		zap.String("github.pull_request.review.action", action),
-		zap.Time("github.pull_request.review.submitted_at", submittedAt),
+		zap.Time("github.pull_request.review.submitted_at", submittedAt.Time),
 	)
 
 	switch reviewState {

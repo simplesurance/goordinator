@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/go-github/v43/github"
+	"github.com/google/go-github/v59/github"
 	"go.uber.org/zap"
 
 	"github.com/simplesurance/goordinator/internal/logfields"

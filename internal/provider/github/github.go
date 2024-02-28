@@ -5,7 +5,7 @@ import (
 
 	"github.com/simplesurance/goordinator/internal/logfields"
 
-	"github.com/google/go-github/v43/github"
+	"github.com/google/go-github/v59/github"
 	"go.uber.org/zap"
 )
 
