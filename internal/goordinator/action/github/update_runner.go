@@ -18,13 +18,17 @@ type UpdateRunner struct {
 }
 
 func (r *UpdateRunner) Run(ctx context.Context) error {
-	changed, err := r.clt.UpdateBranch(ctx, r.repositoryOwner, r.repository, r.pullRequestNumber)
+	changed, scheduled, err := r.clt.UpdateBranch(ctx, r.repositoryOwner, r.repository, r.pullRequestNumber)
 	if err != nil {
 		return err
 	}
 
 	if changed {
-		r.logger.Info("github branch updates with base branch")
+		if scheduled {
+			r.logger.Info("updating github branch with base branch schedule scheduled")
+		} else {
+			r.logger.Info("updated github branch with base branch")
+		}
 	} else {
 		r.logger.Info("github branch already uptodate with base branch")
 	}

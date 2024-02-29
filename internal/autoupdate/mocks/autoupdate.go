@@ -85,12 +85,13 @@ func (mr *MockGithubClientMockRecorder) ReadyForMerge(ctx, owner, repo, prNumber
 }
 
 // UpdateBranch mocks base method.
-func (m *MockGithubClient) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
+func (m *MockGithubClient) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateBranch", ctx, owner, repo, pullRequestNumber)
 	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // UpdateBranch indicates an expected call of UpdateBranch.

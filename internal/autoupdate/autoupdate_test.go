@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -78,15 +79,15 @@ func mockSuccessfulGithubUpdateBranchCall(clt *mocks.MockGithubClient, expectedP
 	return clt.
 		EXPECT().
 		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(expectedPRNr)).
-		Return(branchChanged, nil)
+		Return(branchChanged, false, nil)
 }
 
 func mockFailedGithubUpdateBranchCall(clt *mocks.MockGithubClient, expectedPRNr int) *gomock.Call {
 	return clt.
 		EXPECT().
 		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(expectedPRNr)).
-		DoAndReturn(func(context.Context, string, string, int) (bool, error) {
-			return false, errors.New("error mocked by mockFailedGithubUpdateBranchCall")
+		DoAndReturn(func(context.Context, string, string, int) (bool, bool, error) {
+			return false, false, errors.New("error mocked by mockFailedGithubUpdateBranchCall")
 		})
 }
 
@@ -675,8 +676,8 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 			ghClient.
 				EXPECT().
 				UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-				DoAndReturn(func(context.Context, string, string, int) (bool, error) {
-					return false, nil
+				DoAndReturn(func(context.Context, string, string, int) (bool, bool, error) {
+					return false, false, nil
 				}).
 				MinTimes(3)
 
@@ -839,8 +840,8 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 			ghClient.
 				EXPECT().
 				UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-				DoAndReturn(func(context.Context, string, string, int) (bool, error) {
-					return false, nil
+				DoAndReturn(func(context.Context, string, string, int) (bool, bool, error) {
+					return false, false, nil
 				}).
 				AnyTimes()
 
@@ -1086,7 +1087,7 @@ func TestInitialSync(t *testing.T) {
 	ghClient.
 		EXPECT().
 		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-		Return(true, nil).
+		Return(true, false, nil).
 		AnyTimes()
 
 	prIterNone := mocks.NewMockPRIterator(mockctrl)
@@ -1410,4 +1411,64 @@ func TestUpdatesAreResumeIfTestsFailAndBaseIsUpdated(t *testing.T) {
 	waitForProcessedEventCnt(t, autoupdater, 2)
 	assert.Equal(t, queue.activeLen(), 1)
 	assert.Len(t, queue.suspended, 0)
+}
+
+func TestBaseBranchUpdatesBlockUntilFinished(t *testing.T) {
+	t.Cleanup(zap.ReplaceGlobals(zaptest.NewLogger(t).Named(t.Name())))
+	evChan := make(chan *github_prov.Event, 1)
+
+	mockctrl := gomock.NewController(t)
+	ghClient := mocks.NewMockGithubClient(mockctrl)
+	prNumber := 1
+	prBranch := "pr_branch"
+	triggerLabel := "queue-add"
+	baseBranch, err := NewBaseBranch(repoOwner, repo, "main")
+	require.NoError(t, err)
+
+	mockReadyForMergeStatus(
+		ghClient, prNumber,
+		githubclt.ReviewDecisionApproved,
+		githubclt.CIStatusPending,
+	).MinTimes(1)
+
+	scheduledReturnVal := atomic.Bool{}
+	scheduledReturnVal.Store(true)
+	var updateBranchCalls int64
+
+	ghClient.
+		EXPECT().
+		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
+		DoAndReturn(func(context.Context, string, string, int) (bool, bool, error) {
+			atomic.AddInt64(&updateBranchCalls, 1)
+			return true, scheduledReturnVal.Load(), nil
+		}).MinTimes(1)
+
+	retryer := goordinator.NewRetryer()
+	autoupdater := NewAutoupdater(
+		ghClient,
+		evChan,
+		retryer,
+		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
+		true,
+		[]string{triggerLabel},
+	)
+	autoupdater.Start()
+	t.Cleanup(autoupdater.Stop)
+
+	evChan <- &github_prov.Event{Event: newPullRequestAutomergeEnabledEvent(prNumber, prBranch, baseBranch.Branch)}
+	waitForProcessedEventCnt(t, autoupdater, 1)
+	queue := autoupdater.getQueue(baseBranch.BranchID)
+
+	const waitForBranchUpdateCallCount = 3
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt64(&updateBranchCalls) > int64(waitForBranchUpdateCallCount)
+	}, queue.updateBranchPollInterval*waitForBranchUpdateCallCount*2, queue.updateBranchPollInterval/2)
+
+	require.NotNil(t, queue.getExecuting())
+
+	scheduledReturnVal.Store(false)
+	require.Eventually(t, func() bool {
+		return queue.getExecuting() == nil
+	}, queue.updateBranchPollInterval+2*time.Second, queue.updateBranchPollInterval/2)
+
 }

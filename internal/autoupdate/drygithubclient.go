@@ -23,9 +23,9 @@ func NewDryGithubClient(clt GithubClient, logger *zap.Logger) *DryGithubClient {
 	}
 }
 
-func (c *DryGithubClient) UpdateBranch(context.Context, string, string, int) (bool, error) {
+func (c *DryGithubClient) UpdateBranch(context.Context, string, string, int) (bool, bool, error) {
 	c.logger.Info("simulated updating of github branch, returning is uptodate")
-	return false, nil
+	return false, false, nil
 }
 
 func (c *DryGithubClient) ReadyForMerge(context.Context, string, string, int) (*githubclt.ReadyForMergeStatus, error) {
