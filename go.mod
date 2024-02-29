@@ -4,7 +4,6 @@ go 1.22.0
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/golang/mock v1.6.0
 	github.com/google/go-github/v59 v59.0.0
 	github.com/itchyny/gojq v0.12.14
 	github.com/pelletier/go-toml v1.9.5
@@ -15,6 +14,7 @@ require (
 	github.com/sykesm/zap-logfmt v0.0.4
 	github.com/thecodeteam/goodbye v0.0.0-20170927022442-a83968bda2d3
 	go.uber.org/goleak v1.3.0
+	go.uber.org/mock v0.4.0
 	go.uber.org/zap v1.26.0
 	golang.org/x/oauth2 v0.16.0
 )
