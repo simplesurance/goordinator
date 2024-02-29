@@ -132,12 +132,13 @@ func (clt *Client) CreateIssueComment(ctx context.Context, owner, repo string, i
 }
 
 // UpdateBranch schedules merging the base-branch into a pull request branch.
-// If the PR contains all changes of it's base branch, false is returned.
-// If it's not uptodate and updating the PR was scheduled at github, true is returned.
+// If the PR contains all changes of it's base branch, false is returned for changed
+// If it's not uptodate and updating the PR was scheduled at github, true is returned for changed and scheduled.
 // If the PR was updated while the method was executed, a
 // goorderr.RetryableError is returned and the operation can be retried.
-// If the branch can not be updated automatically because of a merge conflict, an error is returned.
-func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, error) {
+// If the branch can not be updated automatically because of a merge conflict,
+// an error is returned.
+func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (changed, scheduled bool, err error) {
 	// 1. Get Commit of PR
 	// 2. Check if it is uptodate
 	// 3. If not -> Update, specify commit as HEAD branch
@@ -149,7 +150,7 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	// needed.
 	isUptodate, prHEADSHA, err := clt.PRIsUptodate(ctx, owner, repo, pullRequestNumber)
 	if err != nil {
-		return false, fmt.Errorf("evaluating if PR is uptodate with base branch failed: %w", err)
+		return false, false, fmt.Errorf("evaluating if PR is uptodate with base branch failed: %w", err)
 	}
 
 	logger := clt.logger.With(
@@ -162,7 +163,7 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	if isUptodate {
 		logger.Debug("branch is uptodate with base branch, skipping running update branch operation",
 			logfields.Event("github_branch_uptodate_with_base"))
-		return false, nil
+		return false, false, nil
 	}
 
 	_, _, err = clt.restClt.PullRequests.UpdateBranch(ctx, owner, repo, pullRequestNumber, &github.PullRequestBranchUpdateOptions{ExpectedHeadSHA: &prHEADSHA})
@@ -176,14 +177,14 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 			// now uptodate.
 			logger.Debug("updating branch with base branch scheduled",
 				logfields.Event("github_branch_update_with_base_scheduled"))
-			return true, nil
+			return true, true, nil
 		}
 
 		var respErr *github.ErrorResponse
 		if errors.As(err, &respErr) {
 			if respErr.Response.StatusCode == http.StatusUnprocessableEntity {
 				if strings.Contains(respErr.Message, "merge conflict") {
-					return false, fmt.Errorf("merge conflict: %w", respErr)
+					return false, false, fmt.Errorf("merge conflict: %w", respErr)
 				}
 
 				if strings.Contains(respErr.Message, "expected head sha didn’t match current head ref") {
@@ -191,19 +192,19 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 						logfields.Event("github_branch_update_failed_ref_outdated"),
 					)
 
-					return false, goorderr.NewRetryableAnytimeError(err)
+					return false, false, goorderr.NewRetryableAnytimeError(err)
 				}
 			}
 		}
 
-		return false, clt.wrapRetryableErrors(err)
+		return false, false, clt.wrapRetryableErrors(err)
 	}
 
 	logger.Debug("branch was updated with base branch",
 		logfields.Event("github_branch_update_with_base_triggered"))
 	// github seems to always schedule update operations and return an
 	// AcceptedError, this condition might never happened
-	return true, nil
+	return true, false, nil
 }
 
 // RemoveLabel removes a label from a Pull-Request or issue.

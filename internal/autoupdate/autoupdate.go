@@ -26,7 +26,7 @@ const defPeriodicTriggerInterval = 30 * time.Minute
 // GithubClient defines the methods of a GithubAPI Client that are used by the
 // autoupdate implementation.
 type GithubClient interface {
-	UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, error)
+	UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (changed bool, scheduled bool, err error)
 	CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error
 	ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator
 	ReadyForMerge(ctx context.Context, owner, repo string, prNumber int) (*githubclt.ReadyForMergeStatus, error)

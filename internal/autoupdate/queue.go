@@ -15,6 +15,7 @@ import (
 	"github.com/simplesurance/goordinator/internal/autoupdate/orderedmap"
 	"github.com/simplesurance/goordinator/internal/autoupdate/routines"
 	"github.com/simplesurance/goordinator/internal/githubclt"
+	"github.com/simplesurance/goordinator/internal/goorderr"
 	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
@@ -27,6 +28,8 @@ const DefStaleTimeout = 3 * time.Hour
 // retried on a temporary error. The longer the duration is, the longer it
 // blocks the first element in the queue.
 const retryTimeout = 20 * time.Minute
+
+const updateBranchPollInterval = time.Second
 
 // queue implements a queue for automatically updating pull request branches
 // with their base branch.
@@ -72,20 +75,25 @@ type queue struct {
 	updatePRRuns uint64 // atomic must be accessed via atomic functions
 
 	staleTimeout time.Duration
+	// updateBranchPollInterval specifies the minimum pause between
+	// checking if a Pull Request branch has been updated with it's base
+	// branch, after GitHub returned that an update has been scheduled.
+	updateBranchPollInterval time.Duration
 
 	metrics *queueMetrics
 }
 
 func newQueue(base *BaseBranch, logger *zap.Logger, ghClient GithubClient, retryer Retryer) *queue {
 	q := queue{
-		baseBranch:   *base,
-		active:       orderedmap.New[int, *PullRequest](),
-		suspended:    map[int]*PullRequest{},
-		logger:       logger.Named("queue").With(base.Logfields...),
-		ghClient:     ghClient,
-		retryer:      retryer,
-		actionPool:   routines.NewPool(1),
-		staleTimeout: DefStaleTimeout,
+		baseBranch:               *base,
+		active:                   orderedmap.New[int, *PullRequest](),
+		suspended:                map[int]*PullRequest{},
+		logger:                   logger.Named("queue").With(base.Logfields...),
+		ghClient:                 ghClient,
+		retryer:                  retryer,
+		actionPool:               routines.NewPool(1),
+		staleTimeout:             DefStaleTimeout,
+		updateBranchPollInterval: updateBranchPollInterval,
 	}
 
 	q.setLastRun(time.Time{})
@@ -654,12 +662,25 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *zap.Logger, loggingFields []zapcore.Field) (changed bool, updateBranchErr error) {
 	updateBranchErr = q.retryer.Run(ctx, func(ctx context.Context) error {
 		var err error
-		changed, err = q.ghClient.UpdateBranch(
+		var scheduled bool
+
+		changed, scheduled, err = q.ghClient.UpdateBranch(
 			ctx,
 			q.baseBranch.RepositoryOwner,
 			q.baseBranch.Repository,
 			pr.Number,
 		)
+		if err != nil {
+			return err
+		}
+
+		if changed && scheduled {
+			return goorderr.NewRetryableError(
+				errors.New("branch update was scheduled, retrying until update was done"),
+				time.Now().Add(q.updateBranchPollInterval),
+			)
+		}
+
 		return err
 	}, loggingFields)
 
