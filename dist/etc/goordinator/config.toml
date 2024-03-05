@@ -41,6 +41,9 @@ autoupdater.trigger_labels = ["queue-add"]
 # enqueue/dequeue a pull request for autoupdates when auto-merge is enabled
 # (https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
 autoupdater.trigger_on_auto_merge = true
+# queue_pr_head_label is the name of the GitHub label that is applied to the pull
+# request that is the first in the autoupdate queue
+autoupdater.queue_pr_head_label = "autoupdater-first"
 # local http server endpoint under which a minimal webinterface is served
 autoupdater.http_endpoint = "/autoupdater"
 

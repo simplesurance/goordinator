@@ -45,6 +45,7 @@ type Retryer interface {
 type Autoupdater struct {
 	triggerOnAutomerge bool
 	triggerLabels      map[string]struct{}
+	headLabel          string
 	monitoredRepos     map[Repository]struct{}
 
 	// periodicTriggerIntv defines the time span between triggering
@@ -106,6 +107,7 @@ type Opt func(*Autoupdater)
 // be provided to trigger enqueuing pull requests for autoupdates via webhook events.
 // When multiple event triggers are configured, the autoupdater reacts on each
 // received Event individually.
+// headLabel is the name of the GitHub label that is applied to the PR that is the first in the queue.
 func NewAutoupdater(
 	ghClient GithubClient,
 	eventChan <-chan *github_prov.Event,
@@ -113,6 +115,7 @@ func NewAutoupdater(
 	monitoredRepositories []Repository,
 	triggerOnAutomerge bool,
 	triggerLabels []string,
+	headLabel string,
 	opts ...Opt,
 ) *Autoupdater {
 	repoMap := make(map[Repository]struct{}, len(monitoredRepositories))
@@ -129,6 +132,7 @@ func NewAutoupdater(
 		wg:                  sync.WaitGroup{},
 		triggerOnAutomerge:  triggerOnAutomerge,
 		triggerLabels:       toStrSet(triggerLabels),
+		headLabel:           headLabel,
 		monitoredRepos:      repoMap,
 		periodicTriggerIntv: defPeriodicTriggerInterval,
 		shutdownChan:        make(chan struct{}, 1),

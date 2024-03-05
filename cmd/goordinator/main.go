@@ -318,6 +318,11 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 		return nil, nil
 	}
 
+	if len(config.Autoupdater.HeadLabel) == 0 {
+		fmt.Fprintf(os.Stderr, "ERROR: config file %s: queue_pr_head_label must be provided when autoupdater is enabled", *args.ConfigFile)
+		os.Exit(1)
+	}
+
 	if len(config.GithubAPIToken) == 0 {
 		fmt.Fprintf(os.Stderr, "ERROR: config file %s: github_api_token must be provided when autoupdater is enabled", *args.ConfigFile)
 		os.Exit(1)
@@ -350,6 +355,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 		repos,
 		config.Autoupdater.TriggerOnAutoMerge,
 		config.Autoupdater.Labels,
+		config.Autoupdater.HeadLabel,
 		autoupdate.DryRun(*args.AutoupdaterDryRun),
 	)
 	autoupdater.Start()

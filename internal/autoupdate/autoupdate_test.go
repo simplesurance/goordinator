@@ -25,6 +25,7 @@ import (
 
 const repo = "repo"
 const repoOwner = "testman"
+const queueHeadLabel = "first"
 
 const condCheckInterval = 20 * time.Millisecond
 const condWaitTimeout = 5 * time.Second
@@ -216,6 +217,7 @@ func TestEnqueueDequeue(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		nil,
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -264,6 +266,7 @@ func TestSuspendAndResume(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		nil,
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -321,6 +324,7 @@ func TestPushToPRBranchResumesPR(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		nil,
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -376,6 +380,7 @@ func TestPushToBaseBranchTriggersUpdate(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		nil,
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -424,6 +429,7 @@ func TestPushToBaseBranchResumesPRs(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -474,6 +480,7 @@ func TestPRBaseBranchChangeMovesItToAnotherQueue(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -532,6 +539,7 @@ func TestUnlabellingPRDequeuesPR(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -581,6 +589,7 @@ func TestClosingPRDequeuesPR(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -707,6 +716,7 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 				[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 				true,
 				nil,
+				queueHeadLabel,
 			)
 
 			autoupdater.Start()
@@ -853,6 +863,7 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 				[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 				true,
 				nil,
+				queueHeadLabel,
 			)
 
 			autoupdater.Start()
@@ -924,6 +935,7 @@ func TestPRIsSuspendedWhenStatusIsStuck(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 	autoupdater.periodicTriggerIntv = time.Second
 
@@ -1013,6 +1025,7 @@ func TestPRIsSuspendedWhenUptodateAndHasFailedStatus(t *testing.T) {
 				[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 				true,
 				[]string{triggerLabel},
+				queueHeadLabel,
 			)
 
 			autoupdater.Start()
@@ -1055,6 +1068,7 @@ func TestEnqueueDequeueByAutomergeEvents(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		nil,
+		queueHeadLabel,
 	)
 	autoupdater.Start()
 	t.Cleanup(autoupdater.Stop)
@@ -1146,6 +1160,7 @@ func TestInitialSync(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{"queue-add"},
+		queueHeadLabel,
 	)
 
 	err := autoupdater.Sync(context.Background())
@@ -1192,6 +1207,7 @@ func TestFirstPRInQueueIsUpdatedPeriodically(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 
 	autoupdater.periodicTriggerIntv = 2 * time.Second
@@ -1238,6 +1254,7 @@ func TestReviewApprovedEventResumesSuspendedPR(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -1290,6 +1307,7 @@ func TestDismissingApprovalSuspendsActivePR(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -1342,6 +1360,7 @@ func TestRequestingReviewChangesSuspendsPR(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -1391,6 +1410,7 @@ func TestUpdatesAreResumeIfTestsFailAndBaseIsUpdated(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 
 	autoupdater.Start()
@@ -1451,6 +1471,7 @@ func TestBaseBranchUpdatesBlockUntilFinished(t *testing.T) {
 		[]Repository{{OwnerLogin: repoOwner, RepositoryName: repo}},
 		true,
 		[]string{triggerLabel},
+		queueHeadLabel,
 	)
 	autoupdater.Start()
 	t.Cleanup(autoupdater.Stop)
