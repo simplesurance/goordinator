@@ -319,7 +319,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 	}
 
 	if len(config.Autoupdater.HeadLabel) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: config file %s: queue_pr_head_label must be provided when autoupdater is enabled", *args.ConfigFile)
+		fmt.Fprintf(os.Stderr, "ERROR: config file %s: autoupdater.queue_pr_head_label must be provided when autoupdater is enabled", *args.ConfigFile)
 		os.Exit(1)
 	}
 
@@ -334,7 +334,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 	}
 
 	if len(config.Autoupdater.Repositories) == 0 {
-		logger.Info("github pull request updater is disabled, repository list in config is empty")
+		logger.Info("github pull request updater is disabled, autoupdater.repository config field is empty")
 		return nil, nil
 	}
 
