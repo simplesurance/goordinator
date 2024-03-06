@@ -207,6 +207,18 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	return true, false, nil
 }
 
+// AddLabel adds a label to Pull-Request or Issue.
+func (clt *Client) AddLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error {
+	if label == "" {
+		// by default github removes all labels when none is provided,
+		// we do not need this functionality, as safe guard fail if
+		// because of a bug an empty label value is passed:
+		return errors.New("provided label is empty")
+	}
+	_, _, err := clt.restClt.Issues.AddLabelsToIssue(ctx, owner, repo, pullRequestOrIssueNumber, []string{label})
+	return clt.wrapRetryableErrors(err)
+}
+
 // RemoveLabel removes a label from a Pull-Request or issue.
 // If the issue or PR does not have the label, the operation succeeds.
 func (clt *Client) RemoveLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error {

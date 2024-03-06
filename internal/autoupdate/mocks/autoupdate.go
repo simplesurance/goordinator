@@ -41,6 +41,20 @@ func (m *MockGithubClient) EXPECT() *MockGithubClientMockRecorder {
 	return m.recorder
 }
 
+// AddLabel mocks base method.
+func (m *MockGithubClient) AddLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddLabel", ctx, owner, repo, pullRequestOrIssueNumber, label)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddLabel indicates an expected call of AddLabel.
+func (mr *MockGithubClientMockRecorder) AddLabel(ctx, owner, repo, pullRequestOrIssueNumber, label any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddLabel", reflect.TypeOf((*MockGithubClient)(nil).AddLabel), ctx, owner, repo, pullRequestOrIssueNumber, label)
+}
+
 // CreateIssueComment mocks base method.
 func (m *MockGithubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error {
 	m.ctrl.T.Helper()
