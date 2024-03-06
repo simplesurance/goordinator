@@ -45,3 +45,7 @@ func (c *DryGithubClient) CreateIssueComment(context.Context, string, string, in
 func (c *DryGithubClient) ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator {
 	return c.clt.ListPullRequests(ctx, owner, repo, state, sort, sortDirection)
 }
+
+func (*DryGithubClient) RemoveLabel(context.Context, string, string, int, string) error {
+	return nil
+}

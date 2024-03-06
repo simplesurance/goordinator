@@ -1119,22 +1119,31 @@ func TestInitialSync(t *testing.T) {
 		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
 
+	ghClient.
+		EXPECT().
+		RemoveLabel(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(5), gomock.Eq(queueHeadLabel)).
+		Times(1)
+
 	prAutoMergeEnabled := newBasicPullRequest(1, "main", "pr1")
 	prAutoMergeEnabled.AutoMerge = &github.PullRequestAutoMerge{}
 
-	prWithlabel := newBasicPullRequest(2, "main", "pr2")
-	prWithlabel.Labels = []*github.Label{{Name: strPtr("queue-add")}}
+	prWithTriggerLabel := newBasicPullRequest(2, "main", "pr2")
+	prWithTriggerLabel.Labels = []*github.Label{{Name: strPtr("queue-add")}}
 
 	prWithoutTrigger := newBasicPullRequest(3, "main", "pr3")
 
 	prBasedOnOtherPR2 := newBasicPullRequest(4, "pr3", "pr4")
 	prBasedOnOtherPR2.AutoMerge = &github.PullRequestAutoMerge{}
 
+	prWithQueueHeadLabel := newBasicPullRequest(5, "main", "pr5")
+	prWithQueueHeadLabel.Labels = []*github.Label{{Name: strPtr(queueHeadLabel)}}
+
 	syncPRRequestsRet := []*github.PullRequest{
 		prAutoMergeEnabled,
-		prWithlabel,
+		prWithTriggerLabel,
 		prWithoutTrigger,
 		prBasedOnOtherPR2,
+		prWithQueueHeadLabel,
 	}
 
 	prIterNone.
@@ -1163,7 +1172,7 @@ func TestInitialSync(t *testing.T) {
 		queueHeadLabel,
 	)
 
-	err := autoupdater.Sync(context.Background())
+	err := autoupdater.InitSync(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(autoupdater.Stop)
 

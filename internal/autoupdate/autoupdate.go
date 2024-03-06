@@ -30,6 +30,7 @@ type GithubClient interface {
 	CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error
 	ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator
 	ReadyForMerge(ctx context.Context, owner, repo string, prNumber int) (*githubclt.ReadyForMergeStatus, error)
+	RemoveLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error
 }
 
 // Retryer defines methods for running GithubClient operations repeately if

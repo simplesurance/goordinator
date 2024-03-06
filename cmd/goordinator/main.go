@@ -497,7 +497,7 @@ func main() {
 
 	if autoupdater != nil {
 		ctx, cancelFn := context.WithTimeout(context.Background(), 15*time.Minute)
-		if err := autoupdater.Sync(ctx); err != nil {
+		if err := autoupdater.InitSync(ctx); err != nil {
 			logger.Error(
 				"autoupdater: initial synchronization failed",
 				logfields.Event("autoupdate_initial_sync_failed"),

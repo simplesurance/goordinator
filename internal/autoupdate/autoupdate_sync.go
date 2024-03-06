@@ -18,14 +18,17 @@ const (
 	undefined syncAction = iota
 	enqueue
 	dequeue
+	unlabel
 )
 
-// Sync synchronized the states of the autoupdater queues with the current
+// InitSync does an initial synchronization of the autoupdater queues with the
 // pull request state at GitHub.
+// This is intended to be run before Autoupdater is started.
 // Pull request information is queried from github.
 // If a PR meets a condition to be enqueued for auto-updates it is enqueued.
 // If it meets a condition for not being autoupdated, it is dequeued.
-func (a *Autoupdater) Sync(ctx context.Context) error {
+// If a PR has the [a.headLabel] set it is removed.
+func (a *Autoupdater) InitSync(ctx context.Context) error {
 	for repo := range a.monitoredRepos {
 		err := a.sync(ctx, repo.OwnerLogin, repo.RepositoryName)
 		if err != nil {
@@ -37,16 +40,6 @@ func (a *Autoupdater) Sync(ctx context.Context) error {
 }
 
 func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
-	/* TODO: when using this method to clean-up the queues during runtime, there is the chance of a race.
-	   We might receive and process a later PR Closed event, remove it from
-	   the queue and then retrieve from the API an earlier PR state and add
-	   the closed pr to the queue again.
-
-	   Possible solution: honor the pushed_at timestamp in the events and
-	   PullRequest objects, that would mean we would have to store those
-	   timestamps for already dequeued PRs
-	*/
-
 	stats := syncStat{StartTime: time.Now()}
 
 	logger := a.logger.With(
@@ -56,7 +49,7 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 
 	logger.Info(
 		"starting synchronization",
-		logfields.Event("sync_started"),
+		logfields.Event("initial_sync_started"),
 	)
 
 	var stateFilter string
@@ -96,67 +89,76 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 		// redefine variable, to make PR fields scoped to this iteration
 		logger := logger.With(logfields.PullRequest(pr.GetNumber()))
 
-		switch action := a.evaluateAction(pr); action {
-		case enqueue:
-			err := a.enqueuePR(ctx, owner, repo, pr)
-			if errors.Is(err, ErrAlreadyExists) {
-				logger.Debug(
-					"queue in-sync, pr is enqueued",
-					logfields.Event("queue_in_sync"),
+		for _, action := range a.evaluateActions(pr) {
+			switch action {
+			case unlabel:
+				err := a.removeLabel(ctx, owner, repo, pr)
+				if err != nil {
+					logger.Warn(
+						"removing pull request label failed",
+						logEventRemovingLabelFailed,
+						zap.Error(err),
+					)
+				}
+
+			case enqueue:
+				err := a.enqueuePR(ctx, owner, repo, pr)
+				if errors.Is(err, ErrAlreadyExists) {
+					logger.Debug(
+						"queue in-sync, pr is enqueued",
+						logfields.Event("queue_in_sync"),
+					)
+					break
+				}
+				if err != nil {
+					stats.Failures++
+					logger.Warn(
+						"adding pr to queue failed",
+						logEventEventIgnored,
+						zap.Error(err),
+					)
+					break
+				}
+
+				stats.Enqueued++
+				logger.Info(
+					"queue was out of sync, pr enqueue",
+					logfields.Event("queue_out_of_sync"),
 				)
-				break
-			}
-			if err != nil {
-				stats.Failures++
-				logger.Warn(
-					"adding pr to queue failed",
-					logEventEventIgnored,
-					zap.Error(err),
+
+			case dequeue:
+				err := a.dequeuePR(ctx, owner, repo, pr)
+				if errors.Is(err, ErrNotFound) {
+					logger.Debug(
+						"queue in-sync, pr not queued",
+						logfields.Event("queue_in_sync"),
+						zap.Error(err),
+					)
+					break
+				}
+
+				if err != nil {
+					stats.Failures++
+					logger.Warn(
+						"dequeing pull request failed",
+						logEventEventIgnored,
+						zap.Error(err),
+					)
+					break
+				}
+
+				stats.Dequeued++
+				logger.Info(
+					"queue was out of sync, pr dequeued",
+					logfields.Event("queue_out_of_sync"),
 				)
-				break
-			}
 
-			stats.Enqueued++
-			logger.Info(
-				"queue was out of sync, pr enqueue",
-				logfields.Event("queue_out_of_sync"),
-			)
-
-		case dequeue:
-			err := a.dequeuePR(ctx, owner, repo, pr)
-			if errors.Is(err, ErrNotFound) {
-				logger.Debug(
-					"queue in-sync, pr not queued",
-					logfields.Event("queue_in_sync"),
-					zap.Error(err),
+			default:
+				logger.DPanic(
+					"evaluateActions() returned unexpected value",
+					zap.Int("value", int(action)),
 				)
-				break
 			}
-
-			if err != nil {
-				stats.Failures++
-				logger.Warn(
-					"dequeing pull request failed",
-					logEventEventIgnored,
-					zap.Error(err),
-				)
-				break
-			}
-
-			stats.Dequeued++
-			logger.Info(
-				"queue was out of sync, pr dequeued",
-				logfields.Event("queue_out_of_sync"),
-			)
-
-		case undefined:
-			continue
-
-		default:
-			logger.DPanic(
-				"evaluateAction() returned unexpected value",
-				zap.Int("value", int(action)),
-			)
 		}
 	}
 
@@ -198,25 +200,47 @@ func (a *Autoupdater) dequeuePR(ctx context.Context, repoOwner, repo string, ghP
 	return err
 }
 
-func (a *Autoupdater) evaluateAction(pr *github.PullRequest) syncAction {
+func (a *Autoupdater) removeLabel(ctx context.Context, repoOwner, repo string, ghPr *github.PullRequest) error {
+	pr, err := NewPullRequestFromEvent(ghPr)
+	if err != nil {
+		return err
+	}
+
+	return a.retryer.Run(ctx, func(ctx context.Context) error {
+		return a.ghClient.RemoveLabel(ctx,
+			repoOwner, repo, pr.Number,
+			a.headLabel,
+		)
+	}, append(pr.LogFields, logfields.Event("github_remove_label")))
+}
+
+func (a *Autoupdater) evaluateActions(pr *github.PullRequest) []syncAction {
+	var result []syncAction
+
+	for _, label := range pr.Labels {
+		if label.GetName() == a.headLabel {
+			result = append(result, unlabel)
+		}
+	}
+
 	if pr.GetState() == "closed" {
-		return dequeue
+		return append(result, dequeue)
 	}
 
 	if a.triggerOnAutomerge && pr.GetAutoMerge() != nil {
-		return enqueue
+		return append(result, enqueue)
 	}
 
 	if len(a.triggerLabels) != 0 {
 		for _, label := range pr.Labels {
 			labelName := label.GetName()
 			if _, exist := a.triggerLabels[labelName]; exist {
-				return enqueue
+				return append(result, enqueue)
 			}
 		}
 
-		return dequeue
+		return append(result, dequeue)
 	}
 
-	return undefined
+	return nil
 }

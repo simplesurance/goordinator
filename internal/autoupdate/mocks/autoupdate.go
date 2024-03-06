@@ -84,6 +84,20 @@ func (mr *MockGithubClientMockRecorder) ReadyForMerge(ctx, owner, repo, prNumber
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadyForMerge", reflect.TypeOf((*MockGithubClient)(nil).ReadyForMerge), ctx, owner, repo, prNumber)
 }
 
+// RemoveLabel mocks base method.
+func (m *MockGithubClient) RemoveLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveLabel", ctx, owner, repo, pullRequestOrIssueNumber, label)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveLabel indicates an expected call of RemoveLabel.
+func (mr *MockGithubClientMockRecorder) RemoveLabel(ctx, owner, repo, pullRequestOrIssueNumber, label any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveLabel", reflect.TypeOf((*MockGithubClient)(nil).RemoveLabel), ctx, owner, repo, pullRequestOrIssueNumber, label)
+}
+
 // UpdateBranch mocks base method.
 func (m *MockGithubClient) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, bool, error) {
 	m.ctrl.T.Helper()
