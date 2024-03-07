@@ -46,7 +46,7 @@ func (c *DryGithubClient) ListPullRequests(ctx context.Context, owner, repo, sta
 	return c.clt.ListPullRequests(ctx, owner, repo, state, sort, sortDirection)
 }
 
-func (*DryGithubClient) AddLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error {
+func (*DryGithubClient) AddLabel(context.Context, string, string, int, string) error {
 	return nil
 }
 

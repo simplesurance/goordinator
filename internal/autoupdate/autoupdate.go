@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	github_prov "github.com/simplesurance/goordinator/internal/provider/github"
+	"github.com/simplesurance/goordinator/internal/set"
 
 	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/logfields"
@@ -133,7 +134,7 @@ func NewAutoupdater(
 		retryer:             retryer,
 		wg:                  sync.WaitGroup{},
 		triggerOnAutomerge:  triggerOnAutomerge,
-		triggerLabels:       toStrSet(triggerLabels),
+		triggerLabels:       set.From(triggerLabels),
 		headLabel:           headLabel,
 		monitoredRepos:      repoMap,
 		periodicTriggerIntv: defPeriodicTriggerInterval,
@@ -1103,7 +1104,7 @@ func (a *Autoupdater) SetPRStaleSinceIfNewerByBranch(
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
 
-	missing := toStrSet(branchNames)
+	missing := set.From(branchNames)
 	for baseBranch, q := range a.queues {
 		if baseBranch.Repository != repo || baseBranch.RepositoryOwner != owner {
 			continue
@@ -1112,7 +1113,7 @@ func (a *Autoupdater) SetPRStaleSinceIfNewerByBranch(
 		missing = q.SetPRStaleSinceIfNewerByBranch(branchNames, updatedAt)
 	}
 
-	return strSetToSlice(missing)
+	return missing.Slice()
 }
 
 // SetPRStaleSinceIfNewer sets the staleSince timestamp of the PR to updatedAt,

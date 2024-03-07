@@ -17,6 +17,7 @@ import (
 	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/goorderr"
 	"github.com/simplesurance/goordinator/internal/logfields"
+	"github.com/simplesurance/goordinator/internal/set"
 )
 
 // DefStaleTimeout is the default stale timeout.
@@ -805,7 +806,7 @@ func (q *queue) prsByBranch(branchNames map[string]struct{}) (
 // ActivePRsByBranch returns all pull requests that are in active state and for
 // one of the branches in branchNames.
 func (q *queue) ActivePRsByBranch(branchNames []string) []*PullRequest {
-	branchSet := toStrSet(branchNames)
+	branchSet := set.From(branchNames)
 
 	q.lock.Lock()
 	defer q.lock.Unlock()
@@ -835,7 +836,7 @@ func (q *queue) _activePRsByBranch(branchSet map[string]struct{}) (
 // SuspendedPRsbyBranch returns all pull requests that are in suspended state
 // and for one of the branches in branchNames.
 func (q *queue) SuspendedPRsbyBranch(branchNames []string) []*PullRequest {
-	branchSet := toStrSet(branchNames)
+	branchSet := set.From(branchNames)
 
 	q.lock.Lock()
 	defer q.lock.Unlock()
@@ -963,7 +964,7 @@ func (q *queue) Stop() {
 func (q *queue) SetPRStaleSinceIfNewerByBranch(branchNames []string, t time.Time) (
 	notFound map[string]struct{}) {
 
-	branchSet := toStrSet(branchNames)
+	branchSet := set.From(branchNames)
 	prs, notFound := q.prsByBranch(branchSet)
 
 	for _, pr := range prs {
