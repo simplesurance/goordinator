@@ -81,10 +81,12 @@ type queue struct {
 	// branch, after GitHub returned that an update has been scheduled.
 	updateBranchPollInterval time.Duration
 
+	headLabel string
+
 	metrics *queueMetrics
 }
 
-func newQueue(base *BaseBranch, logger *zap.Logger, ghClient GithubClient, retryer Retryer) *queue {
+func newQueue(base *BaseBranch, logger *zap.Logger, ghClient GithubClient, retryer Retryer, headLabel string) *queue {
 	q := queue{
 		baseBranch:               *base,
 		active:                   orderedmap.New[int, *PullRequest](),
@@ -95,6 +97,7 @@ func newQueue(base *BaseBranch, logger *zap.Logger, ghClient GithubClient, retry
 		actionPool:               routines.NewPool(1),
 		staleTimeout:             DefStaleTimeout,
 		updateBranchPollInterval: updateBranchPollInterval,
+		headLabel:                headLabel,
 	}
 
 	q.setLastRun(time.Time{})
@@ -221,6 +224,7 @@ func (q *queue) _enqueueActive(pr *PullRequest) error {
 		logfields.Event("pull_request_enqueued"),
 	)
 
+	q.prAddQueueHeadLabel(context.Background(), pr)
 	q.scheduleUpdate(context.Background(), pr)
 
 	return nil
@@ -281,7 +285,7 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 		logger := q.logger.With(pr.LogFields...)
 		logger.Debug(
 			"pull request removed from suspend queue",
-			logfields.Event("pull_request_dequeued"),
+			logfields.Event("pull_request_dequeued_suspended"),
 		)
 
 		pr.SetStateUnchangedSince(time.Time{})
@@ -305,8 +309,10 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 
 	logger.Debug(
 		"pull request removed from active queue",
-		logfields.Event("pull_request_dequeued"),
+		logfields.Event("pull_request_dequeued_active"),
 	)
+
+	q.prRemoveQueueHeadLabel(context.Background(), "dequeue", removed)
 
 	if newFirstElem == nil {
 		return removed, nil
@@ -314,6 +320,7 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 
 	logger.Debug("removing pr changed first element, triggering action")
 
+	q.prAddQueueHeadLabel(context.Background(), newFirstElem)
 	q.scheduleUpdate(context.Background(), newFirstElem)
 
 	return removed, nil
@@ -344,6 +351,8 @@ func (q *queue) Suspend(prNumber int) error {
 	q.suspended[prNumber] = pr
 	q.metrics.SuspendQueueSizeInc()
 
+	q.prRemoveQueueHeadLabel(context.Background(), "dequeue", pr)
+
 	if newFirstElem == nil {
 		return nil
 	}
@@ -353,6 +362,7 @@ func (q *queue) Suspend(prNumber int) error {
 		logfields.Event("pull_request_updates_suspended"),
 	)
 
+	q.prAddQueueHeadLabel(context.Background(), newFirstElem)
 	q.scheduleUpdate(context.Background(), newFirstElem)
 
 	return nil
@@ -476,6 +486,8 @@ func (q *queue) isPRStale(pr *PullRequest) bool {
 }
 
 // updatePR updates runs the update operation for the pull request.
+// If the ctx is cancelled or the pr is not the first one in the active queue
+// nothing is done.
 // If the base-branch contains changes that are not in the pull request branch,
 // updating it, by merging the base-branch into the PR branch, is schedule via
 // the GitHub API.
@@ -526,7 +538,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	status, err := q.prReadyForMergeStatus(ctx, pr)
 	if err != nil {
 		logger.Error(
-			"checking if pr merge status failed",
+			"checking pr merge status failed",
 			logfields.Event("pr_merge_status_check_failed"),
 			zap.Error(err),
 		)
@@ -803,6 +815,62 @@ func (q *queue) prsByBranch(branchNames map[string]struct{}) (
 	return append(suspendedPrs, activePrs...), notFound
 }
 
+func (q *queue) prAddQueueHeadLabel(ctx context.Context, pr *PullRequest) {
+	ctx, cancelFunc := context.WithTimeout(ctx, retryTimeout)
+	defer cancelFunc()
+	err := q.retryer.Run(ctx, func(ctx context.Context) error {
+		// if the PR already has the label, it succeeds
+		return q.ghClient.AddLabel(
+			ctx,
+			q.baseBranch.RepositoryOwner,
+			q.baseBranch.Repository,
+			pr.Number,
+			q.headLabel,
+		)
+	}, pr.LogFields)
+	if err != nil {
+		q.logger.Warn("adding label to PR failed",
+			append([]zapcore.Field{
+				logfields.Event("github_add_label_failed"),
+				zap.Error(err),
+				zap.String("github_label", q.headLabel),
+			}, pr.LogFields...)...)
+	}
+
+	q.logger.Info("queue head label was added to pr",
+		append([]zapcore.Field{
+			logfields.Event("github_label_added"),
+			zap.String("github_label", q.headLabel),
+		}, pr.LogFields...)...)
+}
+
+func (q *queue) prRemoveQueueHeadLabel(ctx context.Context, logReason string, pr *PullRequest) {
+	ctx, cancelFunc := context.WithTimeout(ctx, retryTimeout)
+	defer cancelFunc()
+	err := q.retryer.Run(ctx, func(ctx context.Context) error {
+		return q.ghClient.RemoveLabel(ctx,
+			q.baseBranch.RepositoryOwner,
+			q.baseBranch.Repository,
+			pr.Number,
+			q.headLabel,
+		)
+	}, pr.LogFields)
+	if err != nil {
+		q.logger.Warn("removing label from PR failed",
+			append([]zapcore.Field{
+				logfields.Event("github_removing_label_failed"),
+				zap.Error(err),
+				zap.String("github_label", q.headLabel),
+				logFieldReason(logReason),
+			}, pr.LogFields...)...)
+	}
+	q.logger.Info("queue head label was removed from pr",
+		append([]zapcore.Field{
+			logfields.Event("github_label_removed"),
+			zap.String("github_label", q.headLabel),
+		}, pr.LogFields...)...)
+}
+
 // ActivePRsByBranch returns all pull requests that are in active state and for
 // one of the branches in branchNames.
 func (q *queue) ActivePRsByBranch(branchNames []string) []*PullRequest {
@@ -938,14 +1006,24 @@ func (q *queue) ScheduleResumePRIfStatusPositive(ctx context.Context, pr *PullRe
 		Debug("checking PR status scheduled", logfields.Event("status_check_scheduled"))
 }
 
+// Stop clear alls queues and stops running tasks.
+// The caller must ensure that nothing is added to the queue while Stop is running.
 func (q *queue) Stop() {
 	q.logger.Debug("terminating")
 
 	q.lock.Lock()
-	// empty the qeueues to prevent that more work is scheduled
-	q.active = orderedmap.New[int, *PullRequest]()
 	q.suspended = map[int]*PullRequest{}
+	for prNumber := range q.suspended {
+		_, _ = q._dequeueSuspended(prNumber)
+	}
+
+	q.active.Foreach(func(pr *PullRequest) bool {
+		q._dequeueActive(pr.Number)
+		return true
+	})
+
 	q.lock.Unlock()
+
 	if running := q.getExecuting(); running != nil {
 		running.cancelFunc()
 	}

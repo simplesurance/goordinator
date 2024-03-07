@@ -96,7 +96,7 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 				if err != nil {
 					logger.Warn(
 						"removing pull request label failed",
-						logEventRemovingLabelFailed,
+						logfields.Event("github_label_remove_failed"),
 						zap.Error(err),
 					)
 				}

@@ -989,6 +989,7 @@ func (a *Autoupdater) Enqueue(_ context.Context, baseBranch *BaseBranch, pr *Pul
 			a.logger,
 			a.ghClient,
 			a.retryer,
+			a.headLabel,
 		)
 
 		a.queues[baseBranch.BranchID] = q

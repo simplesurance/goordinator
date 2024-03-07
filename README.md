@@ -19,8 +19,8 @@ timeout expired (default: 2h).
 ### Serialized Synchronization of GitHub Pull Request with their Base Branch
 
 Autoupdater keeps pull requests (PR) updated with their base branch. \
-Pull requests are added to a per base branch queue and the first pull request in
-the queue is kept up to date with its base branch. \
+Pull requests are added to a per base branch queue, the first PR is labeled is
+kept up to date with its base branch. \
 Updates for the PR branch are suspended when:
 
 - the base-branch can not be merged into the PR branch because of a
