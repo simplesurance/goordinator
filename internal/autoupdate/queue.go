@@ -582,8 +582,8 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	if branchChanged {
 		logger.Info(
-			"updating branch with changes from base branch scheduled",
-			logfields.Event("github_branch_update_scheduled"),
+			"branch updated with changes from base branch",
+			logfields.Event("github_branch_updated"),
 		)
 
 		pr.SetStateUnchangedSinceIfNewer(time.Now())
