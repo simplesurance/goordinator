@@ -42,31 +42,17 @@ type ReadyForMergeStatus struct {
 	Statuses       []*CIJobStatus
 }
 
-// ReadyForMerge returns the ReviewDecision and the overall CI status.
-// The CiStatus is calculated based on the CheckRun results, commit Status of
-// the HEAD commit of the PR and the configured required status check contexts
-// of the base branch.
-// CiStatus is pending, if one or more required or non required checks are in
-// a pending state.
-// CiStatus is successful, if no CI status is in pending state and required
-// checks succeeded. Failed status of non-required checks are treated as
-// successful.
-// The following CheckRun results are interpreted as Pending:
-// - status: IN_PROGRESS
-// - status: PENDING
-// - status: QUEUED
-// - status: WAITING
-// - status: COMPLETED, conclusion: ACTION_REQUIRED
-// The following results with a COMPLETED status are treated as failure:
-// - CANCELLED
-// - FAILURE
-// - STALE
-// - STARTUP_FAILURE
-// - TIMED_OUT
-// The following results with a COMPLETED status are treated as successful:
-// - SKIPPED
-// - NEUTRAL
-// - SUCCESS
+// ReadyForMerge returns the [review decision] and [status check rollup] for a PR.
+//
+// The returned [ReadyForMergeStatus.CIStatus] is [CIStatusPending], if one or
+// more checks or status are in pending state.
+// It is [CIStatusSuccess], if no check or status is in pending state and all
+// required ones succeeded.
+// If a required check or status is in failed state the CIStatus is
+// [CIStatusFailure].
+//
+// [status check rollup]: https://docs.github.com/en/graphql/reference/objects#statuscheckrollup
+// [review decision]: https://docs.github.com/en/graphql/reference/enums#pullrequestreviewdecision
 func (clt *Client) ReadyForMerge(ctx context.Context, owner, repo string, prNumber int) (*ReadyForMergeStatus, error) {
 	queryResult, err := clt.reviewAndCIStatus(ctx, owner, repo, prNumber)
 	if err != nil {
@@ -99,7 +85,6 @@ func overallCIStatus(statusCheckRollupState githubv4.StatusState, statuses []*CI
 		if status.Required && status.Status == CIStatusFailure {
 			return CIStatusFailure
 		}
-
 	}
 
 	return result
