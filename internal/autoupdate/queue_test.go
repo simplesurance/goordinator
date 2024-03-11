@@ -20,9 +20,11 @@ func TestUpdatePR_DoesNotCallBaseBranchUpdateIfPRIsNotApproved(t *testing.T) {
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
 
+	mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, 1).Times(1)
+
 	bb, err := NewBaseBranch(repoOwner, repo, "main")
 	require.NoError(t, err)
-	q := newQueue(bb, zap.L(), ghClient, goordinator.NewRetryer())
+	q := newQueue(bb, zap.L(), ghClient, goordinator.NewRetryer(), "first")
 	t.Cleanup(q.Stop)
 
 	pr, err := NewPullRequest(1, "testbr", "fho", "test pr", "")

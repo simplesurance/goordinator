@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	github_prov "github.com/simplesurance/goordinator/internal/provider/github"
+	"github.com/simplesurance/goordinator/internal/set"
 
 	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/logfields"
@@ -30,6 +31,8 @@ type GithubClient interface {
 	CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error
 	ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) githubclt.PRIterator
 	ReadyForMerge(ctx context.Context, owner, repo string, prNumber int) (*githubclt.ReadyForMergeStatus, error)
+	RemoveLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error
+	AddLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error
 }
 
 // Retryer defines methods for running GithubClient operations repeately if
@@ -45,6 +48,7 @@ type Retryer interface {
 type Autoupdater struct {
 	triggerOnAutomerge bool
 	triggerLabels      map[string]struct{}
+	headLabel          string
 	monitoredRepos     map[Repository]struct{}
 
 	// periodicTriggerIntv defines the time span between triggering
@@ -106,6 +110,7 @@ type Opt func(*Autoupdater)
 // be provided to trigger enqueuing pull requests for autoupdates via webhook events.
 // When multiple event triggers are configured, the autoupdater reacts on each
 // received Event individually.
+// headLabel is the name of the GitHub label that is applied to the PR that is the first in the queue.
 func NewAutoupdater(
 	ghClient GithubClient,
 	eventChan <-chan *github_prov.Event,
@@ -113,6 +118,7 @@ func NewAutoupdater(
 	monitoredRepositories []Repository,
 	triggerOnAutomerge bool,
 	triggerLabels []string,
+	headLabel string,
 	opts ...Opt,
 ) *Autoupdater {
 	repoMap := make(map[Repository]struct{}, len(monitoredRepositories))
@@ -128,7 +134,8 @@ func NewAutoupdater(
 		retryer:             retryer,
 		wg:                  sync.WaitGroup{},
 		triggerOnAutomerge:  triggerOnAutomerge,
-		triggerLabels:       toStrSet(triggerLabels),
+		triggerLabels:       set.From(triggerLabels),
+		headLabel:           headLabel,
 		monitoredRepos:      repoMap,
 		periodicTriggerIntv: defPeriodicTriggerInterval,
 		shutdownChan:        make(chan struct{}, 1),
@@ -982,6 +989,7 @@ func (a *Autoupdater) Enqueue(_ context.Context, baseBranch *BaseBranch, pr *Pul
 			a.logger,
 			a.ghClient,
 			a.retryer,
+			a.headLabel,
 		)
 
 		a.queues[baseBranch.BranchID] = q
@@ -1097,7 +1105,7 @@ func (a *Autoupdater) SetPRStaleSinceIfNewerByBranch(
 	a.queuesLock.Lock()
 	defer a.queuesLock.Unlock()
 
-	missing := toStrSet(branchNames)
+	missing := set.From(branchNames)
 	for baseBranch, q := range a.queues {
 		if baseBranch.Repository != repo || baseBranch.RepositoryOwner != owner {
 			continue
@@ -1106,7 +1114,7 @@ func (a *Autoupdater) SetPRStaleSinceIfNewerByBranch(
 		missing = q.SetPRStaleSinceIfNewerByBranch(branchNames, updatedAt)
 	}
 
-	return strSetToSlice(missing)
+	return missing.Slice()
 }
 
 // SetPRStaleSinceIfNewer sets the staleSince timestamp of the PR to updatedAt,

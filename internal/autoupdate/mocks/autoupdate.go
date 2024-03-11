@@ -41,6 +41,20 @@ func (m *MockGithubClient) EXPECT() *MockGithubClientMockRecorder {
 	return m.recorder
 }
 
+// AddLabel mocks base method.
+func (m *MockGithubClient) AddLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddLabel", ctx, owner, repo, pullRequestOrIssueNumber, label)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddLabel indicates an expected call of AddLabel.
+func (mr *MockGithubClientMockRecorder) AddLabel(ctx, owner, repo, pullRequestOrIssueNumber, label any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddLabel", reflect.TypeOf((*MockGithubClient)(nil).AddLabel), ctx, owner, repo, pullRequestOrIssueNumber, label)
+}
+
 // CreateIssueComment mocks base method.
 func (m *MockGithubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error {
 	m.ctrl.T.Helper()
@@ -82,6 +96,20 @@ func (m *MockGithubClient) ReadyForMerge(ctx context.Context, owner, repo string
 func (mr *MockGithubClientMockRecorder) ReadyForMerge(ctx, owner, repo, prNumber any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadyForMerge", reflect.TypeOf((*MockGithubClient)(nil).ReadyForMerge), ctx, owner, repo, prNumber)
+}
+
+// RemoveLabel mocks base method.
+func (m *MockGithubClient) RemoveLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveLabel", ctx, owner, repo, pullRequestOrIssueNumber, label)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveLabel indicates an expected call of RemoveLabel.
+func (mr *MockGithubClientMockRecorder) RemoveLabel(ctx, owner, repo, pullRequestOrIssueNumber, label any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveLabel", reflect.TypeOf((*MockGithubClient)(nil).RemoveLabel), ctx, owner, repo, pullRequestOrIssueNumber, label)
 }
 
 // UpdateBranch mocks base method.

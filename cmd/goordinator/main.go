@@ -318,6 +318,11 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 		return nil, nil
 	}
 
+	if len(config.Autoupdater.HeadLabel) == 0 {
+		fmt.Fprintf(os.Stderr, "ERROR: config file %s: autoupdater.queue_pr_head_label must be provided when autoupdater is enabled", *args.ConfigFile)
+		os.Exit(1)
+	}
+
 	if len(config.GithubAPIToken) == 0 {
 		fmt.Fprintf(os.Stderr, "ERROR: config file %s: github_api_token must be provided when autoupdater is enabled", *args.ConfigFile)
 		os.Exit(1)
@@ -329,7 +334,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 	}
 
 	if len(config.Autoupdater.Repositories) == 0 {
-		logger.Info("github pull request updater is disabled, repository list in config is empty")
+		logger.Info("github pull request updater is disabled, autoupdater.repository config field is empty")
 		return nil, nil
 	}
 
@@ -350,6 +355,7 @@ func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Cli
 		repos,
 		config.Autoupdater.TriggerOnAutoMerge,
 		config.Autoupdater.Labels,
+		config.Autoupdater.HeadLabel,
 		autoupdate.DryRun(*args.AutoupdaterDryRun),
 	)
 	autoupdater.Start()
@@ -491,7 +497,7 @@ func main() {
 
 	if autoupdater != nil {
 		ctx, cancelFn := context.WithTimeout(context.Background(), 15*time.Minute)
-		if err := autoupdater.Sync(ctx); err != nil {
+		if err := autoupdater.InitSync(ctx); err != nil {
 			logger.Error(
 				"autoupdater: initial synchronization failed",
 				logfields.Event("autoupdate_initial_sync_failed"),

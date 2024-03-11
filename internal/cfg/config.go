@@ -30,6 +30,7 @@ type GithubRepository struct {
 type PullRequestUpdater struct {
 	TriggerOnAutoMerge bool               `toml:"trigger_on_auto_merge"`
 	Labels             []string           `toml:"trigger_labels"`
+	HeadLabel          string             `toml:"queue_pr_head_label"`
 	Repositories       []GithubRepository `toml:"repository"`
 	Endpoint           string             `toml:"http_endpoint"`
 }
