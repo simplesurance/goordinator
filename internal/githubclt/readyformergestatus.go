@@ -40,6 +40,7 @@ type ReadyForMergeStatus struct {
 	ReviewDecision ReviewDecision
 	CIStatus       CIStatus
 	Statuses       []*CIJobStatus
+	Commit         string
 }
 
 // ReadyForMerge returns the [review decision] and [status check rollup] for a PR.
@@ -67,6 +68,7 @@ func (clt *Client) ReadyForMerge(ctx context.Context, owner, repo string, prNumb
 		ReviewDecision: ReviewDecision(queryResult.ReviewDecision),
 		CIStatus:       overallCIStatus(queryResult.StatusCheckRollupState, statuses),
 		Statuses:       statuses,
+		Commit:         queryResult.Commit,
 	}, nil
 }
 
@@ -207,6 +209,7 @@ type queryCIStatusResult struct {
 	RequiredStatusCheckContexts []string
 	CheckRuns                   []*queryCheckStatus
 	StatusContext               []*queryStatusContext
+	Commit                      string
 }
 
 func (clt *Client) reviewAndCIStatus(ctx context.Context, owner, repo string, prNumber int) (*queryCIStatusResult, error) {
@@ -261,7 +264,9 @@ func (clt *Client) reviewAndCIStatus(ctx context.Context, owner, repo string, pr
 		"contextsFirst": githubv4.Int(100),
 		"contextsAfter": (*githubv4.String)(nil),
 	}
+	page := -1
 	for {
+		page++
 		var q graphQLQueryCIStatus
 
 		err := clt.graphQLClt.Query(ctx, &q, vars)
@@ -299,6 +304,7 @@ func (clt *Client) reviewAndCIStatus(ctx context.Context, owner, repo string, pr
 			result.ReviewDecision = q.Repository.PullRequest.ReviewDecision
 			result.StatusCheckRollupState = commitsNode.StatusCheckRollup.State
 			result.RequiredStatusCheckContexts = q.Repository.PullRequest.BaseRef.BranchProtectionRule.RequiredStatusCheckContexts
+			result.Commit = prHEADCommitID
 
 			return &result, nil
 		}
