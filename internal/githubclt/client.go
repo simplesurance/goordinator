@@ -62,7 +62,7 @@ type Client struct {
 	logger     *zap.Logger
 }
 
-// BranchIsBehindBase returns true if branch is based on the most recent commit of baseBranch.
+// BranchIsBehindBase returns true if branch is based on an old commit of baseBranch.
 // If it is based on older commit, false is returned.
 func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, baseBranch, branch string) (behind bool, err error) {
 	cmp, _, err := clt.restClt.Repositories.CompareCommits(ctx, owner, repo, baseBranch, branch, &github.ListOptions{PerPage: 1})
