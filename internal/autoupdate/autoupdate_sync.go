@@ -122,7 +122,7 @@ func (a *Autoupdater) sync(ctx context.Context, owner, repo string) error {
 
 				stats.Enqueued++
 				logger.Info(
-					"queue was out of sync, pr enqueue",
+					"queue was out of sync, enqueued pr",
 					logfields.Event("queue_out_of_sync"),
 				)
 
