@@ -966,6 +966,7 @@ func (q *queue) resumeIfPRMergeStatusPositive(ctx context.Context, logger *zap.L
 
 	logger.Debug(
 		"retrieved ready-to-merge-status",
+		logfields.Commit(status.Commit),
 		logfields.ReviewDecision(string(status.ReviewDecision)),
 		logfields.CIStatusSummary(string(status.CIStatus)),
 	)
