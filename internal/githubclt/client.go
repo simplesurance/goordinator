@@ -70,7 +70,11 @@ func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, baseBran
 		return false, clt.wrapRetryableErrors(err)
 	}
 
-	return cmp.GetBehindBy() > 0, nil
+	if cmp.BehindBy == nil {
+		return false, goorderr.NewRetryableAnytimeError(errors.New("github returned a nil BehindBy field"))
+	}
+
+	return *cmp.BehindBy > 0, nil
 }
 
 // PullRequestIsUptodateWithBase returns true if the pull request is open and
