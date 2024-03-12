@@ -62,10 +62,9 @@ type Client struct {
 	logger     *zap.Logger
 }
 
-// BranchIsBehindBase returns true if branch is based on an old commit of baseBranch.
-// If it is based on older commit, false is returned.
-func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, baseBranch, branch string) (behind bool, err error) {
-	cmp, _, err := clt.restClt.Repositories.CompareCommits(ctx, owner, repo, baseBranch, branch, &github.ListOptions{PerPage: 1})
+// BranchIsBehindBase returns true if the head reference contains all changes of base.
+func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, base, head string) (behind bool, err error) {
+	cmp, _, err := clt.restClt.Repositories.CompareCommits(ctx, owner, repo, base, head, &github.ListOptions{PerPage: 1})
 	if err != nil {
 		return false, clt.wrapRetryableErrors(err)
 	}
@@ -121,7 +120,7 @@ func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullReq
 		return false, "", errors.New("got pull request object with empty base ref field")
 	}
 
-	isBehind, err := clt.BranchIsBehindBase(ctx, owner, repo, baseBranch, prBranch)
+	isBehind, err := clt.BranchIsBehindBase(ctx, owner, repo, baseBranch, prHeadSHA)
 	if err != nil {
 		return false, "", fmt.Errorf("evaluating if branch is behind base failed: %w", err)
 	}
