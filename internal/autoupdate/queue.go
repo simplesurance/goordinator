@@ -224,7 +224,6 @@ func (q *queue) _enqueueActive(pr *PullRequest) error {
 		logfields.Event("pull_request_enqueued"),
 	)
 
-	q.prAddQueueHeadLabel(context.Background(), pr)
 	q.scheduleUpdate(context.Background(), pr)
 
 	return nil
@@ -370,7 +369,6 @@ func (q *queue) Suspend(prNumber int) error {
 		zap.Int("github.pull_request_new_first", newFirstElem.Number),
 	)
 
-	q.prAddQueueHeadLabel(context.Background(), newFirstElem)
 	q.scheduleUpdate(context.Background(), newFirstElem)
 
 	return nil
@@ -595,6 +593,15 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		)
 
 		pr.SetStateUnchangedSinceIfNewer(time.Now())
+		// queue label is not added yet, the update of the branch will
+		// cause a PullRequest synchronize event, that will trigger
+		// another run of this function which will then add the label.
+		// This allows to only add the label if the up2date PR
+		// fullfills all other requirements, as being reviewed, not
+		// stale and don't have a failed CI check. Delaying adding the
+		// label prevents that in some situations the label is added
+		// only to be removed shortly after again because e.g. a CI
+		// check failed or an approval was removed
 		return
 	}
 
@@ -633,6 +640,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		)
 
 	case githubclt.CIStatusPending:
+		q.prAddQueueHeadLabel(context.Background(), pr)
 		logger.Info(
 			"pull request is uptodate, approved and status checks are pending",
 			logfields.Event("pr_status_pending"),

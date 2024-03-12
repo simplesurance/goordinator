@@ -222,7 +222,6 @@ func TestEnqueueDequeue(t *testing.T) {
 	ghClient := mocks.NewMockGithubClient(mockctrl)
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
 	mockReadyForMergeStatus(ghClient, pr.Number, githubclt.ReviewDecisionApproved, githubclt.CIStatusPending).AnyTimes()
-	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, pr.Number).Times(1)
 	mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, pr.Number).Times(1)
 
 	retryer := goordinator.NewRetryer()
@@ -268,7 +267,7 @@ func TestSuspendAndResume(t *testing.T) {
 
 	mockctrl := gomock.NewController(t)
 	ghClient := mocks.NewMockGithubClient(mockctrl)
-	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
+	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, false).AnyTimes()
 	mockReadyForMergeStatus(
 		ghClient, pr.Number,
 		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
@@ -299,6 +298,7 @@ func TestSuspendAndResume(t *testing.T) {
 	queue := autoupdater.getQueue(baseBranch.BranchID)
 	require.NotNil(t, queue)
 	assert.Equal(t, queue.activeLen(), 1)
+	waitForQueueUpdateRunsGreaterThan(t, queue, 0)
 
 	updatedPRs, errs := autoupdater.SuspendUpdates(context.Background(), repoOwner, repo, []string{pr.Branch})
 
@@ -314,6 +314,7 @@ func TestSuspendAndResume(t *testing.T) {
 	queue.lock.Lock()
 	assert.Empty(t, queue.suspended)
 	queue.lock.Unlock()
+	waitForQueueUpdateRunsGreaterThan(t, queue, 1)
 }
 
 func TestPushToPRBranchResumesPR(t *testing.T) {
@@ -328,7 +329,7 @@ func TestPushToPRBranchResumesPR(t *testing.T) {
 	pr, err := NewPullRequest(1, "pr_branch", "", "", "")
 	require.NoError(t, err)
 
-	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, true).AnyTimes()
+	mockSuccessfulGithubUpdateBranchCall(ghClient, pr.Number, false).AnyTimes()
 	mockReadyForMergeStatus(
 		ghClient, pr.Number,
 		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
@@ -362,6 +363,7 @@ func TestPushToPRBranchResumesPR(t *testing.T) {
 	assert.Equal(t, queue.activeLen(), 1)
 	assert.Equal(t, queue.suspendedLen(), 0)
 
+	waitForProcessedEventCnt(t, autoupdater, 0)
 	_, errs := autoupdater.SuspendUpdates(context.Background(), repoOwner, repo, []string{pr.Branch})
 	require.Empty(t, errs)
 
@@ -392,9 +394,6 @@ func TestPushToBaseBranchTriggersUpdate(t *testing.T) {
 		ghClient, pr.Number,
 		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).AnyTimes()
-
-	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, 1).Times(1)
-	//mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, prNumber).Times(1)
 
 	retryer := goordinator.NewRetryer()
 	autoupdater := NewAutoupdater(
@@ -445,7 +444,6 @@ func TestPushToBaseBranchResumesPRs(t *testing.T) {
 	mockFailedGithubUpdateBranchCall(ghClient, prNumber)
 	mockSuccesssfulCreateIssueCommentCall(ghClient, prNumber)
 
-	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, prNumber).Times(2)
 	mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, prNumber).Times(1)
 
 	retryer := goordinator.NewRetryer()
@@ -493,7 +491,7 @@ func TestPRBaseBranchChangeMovesItToAnotherQueue(t *testing.T) {
 	prBranch := "pr_branch"
 	triggerLabel := "queue-add"
 
-	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(2)
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).Times(2)
 	mockReadyForMergeStatus(
 		ghClient, prNumber,
 		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
@@ -572,7 +570,6 @@ func TestUnlabellingPRDequeuesPR(t *testing.T) {
 		queueHeadLabel,
 	)
 
-	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, prNumber).Times(1)
 	mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, prNumber).Times(1)
 
 	autoupdater.Start()
@@ -608,7 +605,7 @@ func TestClosingPRDequeuesPR(t *testing.T) {
 	prBranch := "pr_branch"
 	triggerLabel := "queue-add"
 
-	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).Times(1)
 	mockReadyForMergeStatus(
 		ghClient, prNumber,
 		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
@@ -1073,7 +1070,6 @@ func TestPRIsSuspendedWhenUptodateAndHasFailedStatus(t *testing.T) {
 
 			mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).Times(1)
 
-			mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, prNumber).Times(1)
 			mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, prNumber).Times(1)
 
 			mockReadyForMergeStatus(
@@ -1325,7 +1321,6 @@ func TestReviewApprovedEventResumesSuspendedPR(t *testing.T) {
 	)
 	mockStatusReturn.AnyTimes()
 
-	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, prNumber).Times(2)
 	mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, prNumber).Times(1)
 
 	retryer := goordinator.NewRetryer()
@@ -1353,7 +1348,7 @@ func TestReviewApprovedEventResumesSuspendedPR(t *testing.T) {
 	assert.Len(t, queue.suspended, 1)
 
 	mockStatusReturn.ReviewDecision = githubclt.ReviewDecisionApproved
-	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).Times(1)
 
 	evChan <- &github_prov.Event{Event: newPullRequestReviewEvent(prNumber, prBranch, baseBranch, "submitted", "approved")}
 	waitForProcessedEventCnt(t, autoupdater, 2)
@@ -1379,7 +1374,7 @@ func TestDismissingApprovalSuspendsActivePR(t *testing.T) {
 	)
 	mockStatusReturn.AnyTimes()
 
-	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, true).Times(1)
+	mockSuccessfulGithubUpdateBranchCall(ghClient, prNumber, false).Times(1)
 	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, prNumber).Times(1)
 	mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, prNumber).Times(1)
 
@@ -1447,7 +1442,6 @@ func TestRequestingReviewChangesSuspendsPR(t *testing.T) {
 		queueHeadLabel,
 	)
 
-	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, prNumber).Times(1)
 	mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, prNumber).Times(1)
 
 	autoupdater.Start()
@@ -1499,7 +1493,7 @@ func TestUpdatesAreResumeIfTestsFailAndBaseIsUpdated(t *testing.T) {
 		[]string{triggerLabel},
 		queueHeadLabel,
 	)
-	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, prNumber).Times(2)
+	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, prNumber).Times(0) // CI status is never pending
 	mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, prNumber).Times(1)
 
 	autoupdater.Start()
@@ -1599,7 +1593,7 @@ func TestPRHeadLabelIsAppliedToNextAfterMerge(t *testing.T) {
 	pr2Number := 2
 	pr2Branch := "pr_branch2"
 
-	mockSuccessfulGithubUpdateBranchCall(ghClient, pr1Number, true).MinTimes(1)
+	mockSuccessfulGithubUpdateBranchCall(ghClient, pr1Number, false).MinTimes(1)
 	mockSuccessfulGithubUpdateBranchCall(ghClient, pr2Number, true).MaxTimes(1)
 	mockReadyForMergeStatus(
 		ghClient, pr1Number,
@@ -1639,7 +1633,7 @@ func TestPRHeadLabelIsAppliedToNextAfterMerge(t *testing.T) {
 	waitForQueueUpdateRunsGreaterThan(t, queue, 1)
 	mockReadyForMergeStatus(
 		ghClient, pr2Number,
-		githubclt.ReviewDecisionApproved, githubclt.CIStatusSuccess,
+		githubclt.ReviewDecisionApproved, githubclt.CIStatusPending,
 	).MinTimes(1)
 
 	mockSuccessfulGithubRemoveLabelQueueHeadCall(ghClient, pr1Number).Times(1)
