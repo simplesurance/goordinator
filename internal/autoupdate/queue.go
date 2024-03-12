@@ -305,11 +305,11 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 	q.cancelActionForPR(prNumber)
 	removed.SetStateUnchangedSince(time.Time{})
 
-	logger := q.logger.With(removed.LogFields...)
-
-	logger.Debug(
+	q.logger.Debug(
 		"pull request removed from active queue",
-		logfields.Event("pull_request_dequeued_active"),
+		append([]zap.Field{
+			logfields.Event("pull_request_dequeued_active"),
+		}, removed.LogFields...)...,
 	)
 
 	q.prRemoveQueueHeadLabel(context.Background(), "dequeue", removed)
@@ -318,7 +318,11 @@ func (q *queue) Dequeue(prNumber int) (*PullRequest, error) {
 		return removed, nil
 	}
 
-	logger.Debug("removing pr changed first element, triggering action")
+	q.logger.Debug("removing pr changed first element, triggering action",
+		logfields.Event("pull_request_updates_suspended_new_first"),
+		zap.Int("github.pull_request_suspended", removed.Number),
+		zap.Int("github.pull_request_new_first", newFirstElem.Number),
+	)
 
 	q.prAddQueueHeadLabel(context.Background(), newFirstElem)
 	q.scheduleUpdate(context.Background(), newFirstElem)
@@ -345,20 +349,25 @@ func (q *queue) Suspend(prNumber int) error {
 	q.cancelActionForPR(prNumber)
 	pr.SetStateUnchangedSince(time.Time{})
 
-	logger := q.logger.With(pr.LogFields...)
-
 	q.suspended[prNumber] = pr
 	q.metrics.SuspendQueueSizeInc()
 
+	q.logger.Debug(
+		"pr moved to suspend queue",
+		append([]zap.Field{logfields.Event("pull_request_updates_suspended")},
+			pr.LogFields...)...,
+	)
 	q.prRemoveQueueHeadLabel(context.Background(), "dequeue", pr)
 
 	if newFirstElem == nil {
 		return nil
 	}
 
-	logger.Debug(
-		"moving branch to suspend queue changed first element, triggering update",
-		logfields.Event("pull_request_updates_suspended"),
+	q.logger.Debug(
+		"moving pr to suspend queue changed first element, triggering update",
+		logfields.Event("pull_request_updates_suspended_new_first"),
+		zap.Int("github.pull_request_suspended", pr.Number),
+		zap.Int("github.pull_request_new_first", newFirstElem.Number),
 	)
 
 	q.prAddQueueHeadLabel(context.Background(), newFirstElem)
