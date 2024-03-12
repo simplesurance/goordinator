@@ -340,7 +340,6 @@ func (q *queue) Suspend(prNumber int) error {
 
 	if _, exist := q.suspended[prNumber]; exist {
 		q.logger.DPanic("pr was in active and suspend queue, removed it from active queue")
-		return nil
 	}
 
 	q.cancelActionForPR(prNumber)
