@@ -30,7 +30,7 @@ const DefStaleTimeout = 3 * time.Hour
 // blocks the first element in the queue.
 const retryTimeout = 20 * time.Minute
 
-const updateBranchPollInterval = time.Second
+const updateBranchPollInterval = 2 * time.Second
 
 // queue implements a queue for automatically updating pull request branches
 // with their base branch.
