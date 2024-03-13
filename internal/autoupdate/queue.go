@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -843,8 +844,8 @@ func (q *queue) prReadyForMergeStatus(ctx context.Context, pr *PullRequest) (*gi
 	return status, err
 }
 
-func (q *queue) prsByBranch(branchNames map[string]struct{}) (
-	prs []*PullRequest, notFound map[string]struct{},
+func (q *queue) prsByBranch(branchNames set.Set[string]) (
+	prs []*PullRequest, notFound set.Set[string],
 ) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
@@ -922,14 +923,14 @@ func (q *queue) ActivePRsByBranch(branchNames []string) []*PullRequest {
 	return prs
 }
 
-func (q *queue) _activePRsByBranch(branchSet map[string]struct{}) (
-	prs []*PullRequest, notFound map[string]struct{},
+func (q *queue) _activePRsByBranch(branches set.Set[string]) (
+	prs []*PullRequest, notFound set.Set[string],
 ) {
 	var result []*PullRequest
-	notFound = cpBranchNames(branchSet)
+	notFound = maps.Clone(branches)
 
 	q.active.Foreach(func(pr *PullRequest) bool {
-		if _, exist := branchSet[pr.Branch]; exist {
+		if branches.Contains(pr.Branch) {
 			result = append(result, pr)
 			delete(notFound, pr.Branch)
 		}
@@ -952,23 +953,14 @@ func (q *queue) SuspendedPRsbyBranch(branchNames []string) []*PullRequest {
 	return prs
 }
 
-func cpBranchNames(in map[string]struct{}) map[string]struct{} {
-	res := make(map[string]struct{}, len(in))
-	for k := range in {
-		res[k] = struct{}{}
-	}
-
-	return res
-}
-
-func (q *queue) _suspendedPRsbyBranch(branchSet map[string]struct{}) (
-	prs []*PullRequest, notfound map[string]struct{},
+func (q *queue) _suspendedPRsbyBranch(branches set.Set[string]) (
+	prs []*PullRequest, notfound set.Set[string],
 ) {
 	var result []*PullRequest
-	notFound := cpBranchNames(branchSet)
+	notFound := maps.Clone(branches)
 
 	for _, pr := range q.suspended {
-		if _, exist := branchSet[pr.Branch]; exist {
+		if branches.Contains(pr.Branch) {
 			result = append(result, pr)
 			delete(notFound, pr.Branch)
 		}
@@ -1073,7 +1065,7 @@ func (q *queue) Stop() {
 // The function returns a Set of branch names for that no PR in the queue could
 // be found.
 func (q *queue) SetPRStaleSinceIfNewerByBranch(branchNames []string, t time.Time) (
-	notFound map[string]struct{}) {
+	notFound set.Set[string]) {
 
 	branchSet := set.From(branchNames)
 	prs, notFound := q.prsByBranch(branchSet)
