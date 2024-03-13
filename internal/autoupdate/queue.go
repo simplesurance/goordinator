@@ -458,6 +458,7 @@ func (q *queue) scheduleUpdate(ctx context.Context, pr *PullRequest) {
 
 		q.setExecuting(&runningTask{pr: pr.Number, cancelFunc: cancelFunc})
 		q.updatePR(ctx, pr)
+		q.setExecuting(nil)
 	})
 
 	q.logger.With(pr.LogFields...).
@@ -510,8 +511,6 @@ func (q *queue) isPRStale(pr *PullRequest) bool {
 func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	loggingFields := pr.LogFields
 	logger := q.logger.With(loggingFields...)
-
-	defer q.setExecuting(nil)
 
 	// q.setLastRun() is wrapped in a func to evaluate time.Now() on
 	// function exit instead of start
