@@ -529,7 +529,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	if !q.isFirstActive(pr) {
 		logger.Debug(
-			"skipping update , pull request is not first in queue",
+			"skipping update, pull request is not first in queue",
 			logEventUpdateSkipped,
 		)
 		return
@@ -573,16 +573,16 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	logger.Debug("pr is approved")
 
-	branchChanged, _, err := q.updatePRWithBase(ctx, pr, logger, loggingFields)
+	branchChanged, updateHeadCommit, err := q.updatePRWithBase(ctx, pr, logger, loggingFields)
 	if err != nil {
 		// error is logged in q.updatePRIfNeeded
 		return
 	}
-
 	if branchChanged {
 		logger.Info(
 			"branch updated with changes from base branch",
 			logfields.Event("github_branch_updated"),
+			logfields.Commit(updateHeadCommit),
 		)
 
 		pr.SetStateUnchangedSinceIfNewer(time.Now())
@@ -624,6 +624,18 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		zap.Time("last_pr_status_change", pr.GetStateUnchangedSince()),
 		zap.Duration("stale_timeout", q.staleTimeout),
 	)
+
+	if status.Commit != updateHeadCommit {
+		logger.Warn("retrieved ready for merge status for a different "+
+			"commit than the current head commit according to "+
+			"the update branch operation, branch might have "+
+			"changed in between or github might have returned "+
+			"outdated information",
+			zap.String("github.ready_for_merge_commit", status.Commit),
+			zap.String("github.update_branch_head_commit", updateHeadCommit),
+		)
+		// TODO: rerun the update loop, instead of continuing with the wrong information!
+	}
 
 	switch status.CIStatus {
 	case githubclt.CIStatusSuccess:
