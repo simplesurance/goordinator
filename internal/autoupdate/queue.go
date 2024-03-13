@@ -694,11 +694,8 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 }
 
 func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *zap.Logger, loggingFields []zapcore.Field) (changed bool, headCommit string, updateBranchErr error) {
-	var result *githubclt.UpdateBranchResult
 	updateBranchErr = q.retryer.Run(ctx, func(ctx context.Context) error {
-		var err error
-
-		result, err = q.ghClient.UpdateBranch(
+		result, err := q.ghClient.UpdateBranch(
 			ctx,
 			q.baseBranch.RepositoryOwner,
 			q.baseBranch.Repository,
@@ -713,11 +710,17 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 		}
 
 		if result.Scheduled {
+			changed = true
 			return goorderr.NewRetryableError(
 				errors.New("branch update was scheduled, retrying until update was done"),
 				time.Now().Add(q.updateBranchPollInterval),
 			)
 		}
+		if !changed {
+			changed = result.Changed
+		}
+		headCommit = result.HeadCommitID
+
 		return nil
 	}, loggingFields)
 
@@ -797,7 +800,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 		return false, "", errors.Join(updateBranchErr, err)
 	}
 
-	return result.Changed, result.HeadCommitID, nil
+	return changed, headCommit, nil
 }
 
 // prReadyForMergeStatus runs GitHubClient.ReadyForMergeStatus() and retries if
@@ -886,8 +889,7 @@ func (q *queue) prRemoveQueueHeadLabel(ctx context.Context, logReason string, pr
 	defer cancelFunc()
 	err := q.retryer.Run(ctx, func(ctx context.Context) error {
 		return q.ghClient.RemoveLabel(ctx,
-			q.baseBranch.RepositoryOwner,
-			q.baseBranch.Repository,
+			q.baseBranch.RepositoryOwner, q.baseBranch.Repository,
 			pr.Number,
 			q.headLabel,
 		)
