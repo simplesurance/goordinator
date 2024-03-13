@@ -24,3 +24,8 @@ func (s Set[T]) Slice() []T {
 func (s Set[T]) Add(val T) {
 	s[val] = struct{}{}
 }
+
+func (s Set[T]) Contains(v T) bool {
+	_, exists := s[v]
+	return exists
+}

@@ -134,26 +134,32 @@ func (clt *Client) CreateIssueComment(ctx context.Context, owner, repo string, i
 	return clt.wrapRetryableErrors(err)
 }
 
+type UpdateBranchResult struct {
+	Changed      bool
+	Scheduled    bool
+	HeadCommitID string
+}
+
 // UpdateBranch schedules merging the base-branch into a pull request branch.
 // If the PR contains all changes of it's base branch, false is returned for changed
-// If it's not uptodate and updating the PR was scheduled at github, true is returned for changed and scheduled.
+// If it's not up-to-date and updating the PR was scheduled at github, true is returned for changed and scheduled.
 // If the PR was updated while the method was executed, a
 // goorderr.RetryableError is returned and the operation can be retried.
 // If the branch can not be updated automatically because of a merge conflict,
 // an error is returned.
-func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (changed, scheduled bool, err error) {
+func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (*UpdateBranchResult, error) {
 	// 1. Get Commit of PR
-	// 2. Check if it is uptodate
+	// 2. Check if it is up-to-date
 	// 3. If not -> Update, specify commit as HEAD branch
 	// 4. "expected head sha didn’t match current head ref" -> try again
 
 	// If UpdateBranch is called and the branch is already
-	// uptodate, github creates an empty merge commit and changes
+	// up-to-date, github creates an empty merge commit and changes
 	// the branch. Therefore we have to check first if an update is
 	// needed.
 	isUptodate, prHEADSHA, err := clt.PRIsUptodate(ctx, owner, repo, pullRequestNumber)
 	if err != nil {
-		return false, false, fmt.Errorf("evaluating if PR is uptodate with base branch failed: %w", err)
+		return nil, fmt.Errorf("evaluating if PR is up-to-date with base branch failed: %w", err)
 	}
 
 	logger := clt.logger.With(
@@ -164,30 +170,27 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	)
 
 	if isUptodate {
-		logger.Debug("branch is uptodate with base branch, skipping running update branch operation",
+		logger.Debug("branch is up-to-date with base branch, skipping running update branch operation",
 			logfields.Event("github_branch_uptodate_with_base"))
-		return false, false, nil
+		return &UpdateBranchResult{HeadCommitID: prHEADSHA}, nil
 	}
 
 	_, _, err = clt.restClt.PullRequests.UpdateBranch(ctx, owner, repo, pullRequestNumber, &github.PullRequestBranchUpdateOptions{ExpectedHeadSHA: &prHEADSHA})
 	if err != nil {
 		if _, ok := err.(*github.AcceptedError); ok {
-			// It is not clear if the response ensures that
-			// the branch will be updated or if the
-			// scheduled operation can fail.
-			// If this should be the case, we could wait a
-			// bit, iterate again and check if the PR is
-			// now uptodate.
+			// It is not clear if the response ensures that the
+			// branch will be updated or if the scheduled operation
+			// can fail.
 			logger.Debug("updating branch with base branch scheduled",
 				logfields.Event("github_branch_update_with_base_scheduled"))
-			return true, true, nil
+			return &UpdateBranchResult{Scheduled: true, Changed: true}, nil
 		}
 
 		var respErr *github.ErrorResponse
 		if errors.As(err, &respErr) {
 			if respErr.Response.StatusCode == http.StatusUnprocessableEntity {
 				if strings.Contains(respErr.Message, "merge conflict") {
-					return false, false, fmt.Errorf("merge conflict: %w", respErr)
+					return nil, fmt.Errorf("merge conflict: %w", respErr)
 				}
 
 				if strings.Contains(respErr.Message, "expected head sha didn’t match current head ref") {
@@ -195,19 +198,19 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 						logfields.Event("github_branch_update_failed_ref_outdated"),
 					)
 
-					return false, false, goorderr.NewRetryableAnytimeError(err)
+					return nil, goorderr.NewRetryableAnytimeError(err)
 				}
 			}
 		}
 
-		return false, false, clt.wrapRetryableErrors(err)
+		return nil, clt.wrapRetryableErrors(err)
 	}
 
 	logger.Debug("branch was updated with base branch",
 		logfields.Event("github_branch_update_with_base_triggered"))
 	// github seems to always schedule update operations and return an
 	// AcceptedError, this condition might never happened
-	return true, false, nil
+	return &UpdateBranchResult{Changed: true, HeadCommitID: prHEADSHA}, nil
 }
 
 // AddLabel adds a label to Pull-Request or Issue.

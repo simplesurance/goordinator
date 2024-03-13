@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -458,6 +459,7 @@ func (q *queue) scheduleUpdate(ctx context.Context, pr *PullRequest) {
 
 		q.setExecuting(&runningTask{pr: pr.Number, cancelFunc: cancelFunc})
 		q.updatePR(ctx, pr)
+		q.setExecuting(nil)
 	})
 
 	q.logger.With(pr.LogFields...).
@@ -511,8 +513,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	loggingFields := pr.LogFields
 	logger := q.logger.With(loggingFields...)
 
-	defer q.setExecuting(nil)
-
 	// q.setLastRun() is wrapped in a func to evaluate time.Now() on
 	// function exit instead of start
 	defer func() { q.setLastRun(time.Now()) }()
@@ -530,7 +530,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	if !q.isFirstActive(pr) {
 		logger.Debug(
-			"skipping update , pull request is not first in queue",
+			"skipping update, pull request is not first in queue",
 			logEventUpdateSkipped,
 		)
 		return
@@ -550,12 +550,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		)
 		return
 	}
-
-	logger = logger.With(
-		logfields.ReviewDecision(string(status.ReviewDecision)),
-		logfields.CIStatusSummary(string(status.CIStatus)),
-		zap.Any("github.ci_statuses", status.Statuses),
-	)
 
 	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
 		if err := q.Suspend(pr.Number); err != nil {
@@ -580,16 +574,16 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	logger.Debug("pr is approved")
 
-	branchChanged, err := q.updatePRWithBase(ctx, pr, logger, loggingFields)
+	branchChanged, updateHeadCommit, err := q.updatePRWithBase(ctx, pr, logger, loggingFields)
 	if err != nil {
 		// error is logged in q.updatePRIfNeeded
 		return
 	}
-
 	if branchChanged {
 		logger.Info(
 			"branch updated with changes from base branch",
 			logfields.Event("github_branch_updated"),
+			logfields.Commit(updateHeadCommit),
 		)
 
 		pr.SetStateUnchangedSinceIfNewer(time.Now())
@@ -631,6 +625,18 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		zap.Time("last_pr_status_change", pr.GetStateUnchangedSince()),
 		zap.Duration("stale_timeout", q.staleTimeout),
 	)
+
+	if status.Commit != updateHeadCommit {
+		logger.Warn("retrieved ready for merge status for a different "+
+			"commit than the current head commit according to "+
+			"the update branch operation, branch might have "+
+			"changed in between or github might have returned "+
+			"outdated information",
+			zap.String("github.ready_for_merge_commit", status.Commit),
+			zap.String("github.update_branch_head_commit", updateHeadCommit),
+		)
+		// TODO: rerun the update loop, instead of continuing with the wrong information!
+	}
 
 	switch status.CIStatus {
 	case githubclt.CIStatusSuccess:
@@ -688,12 +694,9 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	}
 }
 
-func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *zap.Logger, loggingFields []zapcore.Field) (changed bool, updateBranchErr error) {
+func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *zap.Logger, loggingFields []zapcore.Field) (changed bool, headCommit string, updateBranchErr error) {
 	updateBranchErr = q.retryer.Run(ctx, func(ctx context.Context) error {
-		var err error
-		var scheduled bool
-
-		changed, scheduled, err = q.ghClient.UpdateBranch(
+		result, err := q.ghClient.UpdateBranch(
 			ctx,
 			q.baseBranch.RepositoryOwner,
 			q.baseBranch.Repository,
@@ -703,14 +706,23 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 			return err
 		}
 
-		if changed && scheduled {
+		if result == nil {
+			return errors.New("BUG: updateBranch returned nil result")
+		}
+
+		if result.Scheduled {
+			changed = true
 			return goorderr.NewRetryableError(
 				errors.New("branch update was scheduled, retrying until update was done"),
 				time.Now().Add(q.updateBranchPollInterval),
 			)
 		}
+		if !changed {
+			changed = result.Changed
+		}
+		headCommit = result.HeadCommitID
 
-		return err
+		return nil
 	}, loggingFields)
 
 	if updateBranchErr != nil {
@@ -727,7 +739,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 					logfields.Event("branch_update_failed"),
 					zap.Error(err),
 				)
-				return false, errors.Join(updateBranchErr, err)
+				return false, "", errors.Join(updateBranchErr, err)
 			}
 
 			logger.Info(
@@ -736,7 +748,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 				logReasonPRClosed,
 			)
 
-			return false, updateBranchErr
+			return false, "", updateBranchErr
 		}
 
 		if errors.Is(updateBranchErr, context.Canceled) {
@@ -745,7 +757,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 				logfields.Event("branch_update_cancelled"),
 			)
 
-			return false, updateBranchErr
+			return false, "", updateBranchErr
 		}
 
 		// use a new context, otherwise it is forwarded for an
@@ -757,7 +769,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
-			return false, errors.Join(updateBranchErr, err)
+			return false, "", errors.Join(updateBranchErr, err)
 		}
 
 		logger.Info(
@@ -786,10 +798,10 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 			logger.Error("posting comment to github PR failed", zap.Error(err))
 		}
 
-		return false, errors.Join(updateBranchErr, err)
+		return false, "", errors.Join(updateBranchErr, err)
 	}
 
-	return changed, nil
+	return changed, headCommit, nil
 }
 
 // prReadyForMergeStatus runs GitHubClient.ReadyForMergeStatus() and retries if
@@ -813,14 +825,27 @@ func (q *queue) prReadyForMergeStatus(ctx context.Context, pr *PullRequest) (*gi
 			q.baseBranch.Repository,
 			pr.Number,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		q.logger.Debug(
+			"retrieved ready for merge status",
+			append([]zap.Field{
+				logfields.Commit(status.Commit),
+				logfields.ReviewDecision(string(status.ReviewDecision)),
+				logfields.CIStatusSummary(string(status.CIStatus)),
+				zap.Any("github.ci_statuses", status.Statuses)}, loggingFields...)...,
+		)
+
+		return nil
 	}, loggingFields)
 
 	return status, err
 }
 
-func (q *queue) prsByBranch(branchNames map[string]struct{}) (
-	prs []*PullRequest, notFound map[string]struct{},
+func (q *queue) prsByBranch(branchNames set.Set[string]) (
+	prs []*PullRequest, notFound set.Set[string],
 ) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
@@ -865,8 +890,7 @@ func (q *queue) prRemoveQueueHeadLabel(ctx context.Context, logReason string, pr
 	defer cancelFunc()
 	err := q.retryer.Run(ctx, func(ctx context.Context) error {
 		return q.ghClient.RemoveLabel(ctx,
-			q.baseBranch.RepositoryOwner,
-			q.baseBranch.Repository,
+			q.baseBranch.RepositoryOwner, q.baseBranch.Repository,
 			pr.Number,
 			q.headLabel,
 		)
@@ -899,14 +923,14 @@ func (q *queue) ActivePRsByBranch(branchNames []string) []*PullRequest {
 	return prs
 }
 
-func (q *queue) _activePRsByBranch(branchSet map[string]struct{}) (
-	prs []*PullRequest, notFound map[string]struct{},
+func (q *queue) _activePRsByBranch(branches set.Set[string]) (
+	prs []*PullRequest, notFound set.Set[string],
 ) {
 	var result []*PullRequest
-	notFound = cpBranchNames(branchSet)
+	notFound = maps.Clone(branches)
 
 	q.active.Foreach(func(pr *PullRequest) bool {
-		if _, exist := branchSet[pr.Branch]; exist {
+		if branches.Contains(pr.Branch) {
 			result = append(result, pr)
 			delete(notFound, pr.Branch)
 		}
@@ -929,23 +953,14 @@ func (q *queue) SuspendedPRsbyBranch(branchNames []string) []*PullRequest {
 	return prs
 }
 
-func cpBranchNames(in map[string]struct{}) map[string]struct{} {
-	res := make(map[string]struct{}, len(in))
-	for k := range in {
-		res[k] = struct{}{}
-	}
-
-	return res
-}
-
-func (q *queue) _suspendedPRsbyBranch(branchSet map[string]struct{}) (
-	prs []*PullRequest, notfound map[string]struct{},
+func (q *queue) _suspendedPRsbyBranch(branches set.Set[string]) (
+	prs []*PullRequest, notfound set.Set[string],
 ) {
 	var result []*PullRequest
-	notFound := cpBranchNames(branchSet)
+	notFound := maps.Clone(branches)
 
 	for _, pr := range q.suspended {
-		if _, exist := branchSet[pr.Branch]; exist {
+		if branches.Contains(pr.Branch) {
 			result = append(result, pr)
 			delete(notFound, pr.Branch)
 		}
@@ -963,13 +978,6 @@ func (q *queue) resumeIfPRMergeStatusPositive(ctx context.Context, logger *zap.L
 	if err != nil {
 		return fmt.Errorf("retrieving ready for merge status failed: %w", err)
 	}
-
-	logger.Debug(
-		"retrieved ready-to-merge-status",
-		logfields.Commit(status.Commit),
-		logfields.ReviewDecision(string(status.ReviewDecision)),
-		logfields.CIStatusSummary(string(status.CIStatus)),
-	)
 
 	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
 		logger.Info("updates for prs are not resumed, reviewdecision is not positive")
@@ -1057,7 +1065,7 @@ func (q *queue) Stop() {
 // The function returns a Set of branch names for that no PR in the queue could
 // be found.
 func (q *queue) SetPRStaleSinceIfNewerByBranch(branchNames []string, t time.Time) (
-	notFound map[string]struct{}) {
+	notFound set.Set[string]) {
 
 	branchSet := set.From(branchNames)
 	prs, notFound := q.prsByBranch(branchSet)
