@@ -94,16 +94,14 @@ func mockSuccessfulGithubUpdateBranchCall(clt *mocks.MockGithubClient, expectedP
 	return clt.
 		EXPECT().
 		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(expectedPRNr)).
-		Return(branchChanged, false, nil)
+		Return(&githubclt.UpdateBranchResult{HeadCommitID: headCommitID, Changed: branchChanged}, nil)
 }
 
 func mockFailedGithubUpdateBranchCall(clt *mocks.MockGithubClient, expectedPRNr int) *gomock.Call {
 	return clt.
 		EXPECT().
 		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Eq(expectedPRNr)).
-		DoAndReturn(func(context.Context, string, string, int) (bool, bool, error) {
-			return false, false, errors.New("error mocked by mockFailedGithubUpdateBranchCall")
-		})
+		Return(nil, errors.New("error mocked by mockFailedGithubUpdateBranchCall"))
 }
 
 func mockSuccesssfulCreateIssueCommentCall(clt *mocks.MockGithubClient, expectedPRNr int) *gomock.Call {
@@ -718,9 +716,7 @@ func TestSuccessStatusOrCheckEventResumesPRs(t *testing.T) {
 			ghClient.
 				EXPECT().
 				UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-				DoAndReturn(func(context.Context, string, string, int) (bool, bool, error) {
-					return false, false, nil
-				}).
+				Return(&githubclt.UpdateBranchResult{HeadCommitID: headCommitID}, nil).
 				MinTimes(3)
 
 			mergeStatusPr1 := mockReadyForMergeStatus(
@@ -905,9 +901,7 @@ func TestFailedStatusEventSuspendsFirstPR(t *testing.T) {
 			ghClient.
 				EXPECT().
 				UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-				DoAndReturn(func(context.Context, string, string, int) (bool, bool, error) {
-					return false, false, nil
-				}).
+				Return(&githubclt.UpdateBranchResult{HeadCommitID: headCommitID}, nil).
 				AnyTimes()
 
 			retryer := goordinator.NewRetryer()
@@ -1163,7 +1157,7 @@ func TestInitialSync(t *testing.T) {
 	ghClient.
 		EXPECT().
 		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-		Return(true, false, nil).
+		Return(&githubclt.UpdateBranchResult{Changed: true, HeadCommitID: headCommitID}, nil).
 		AnyTimes()
 
 	prIterNone := mocks.NewMockPRIterator(mockctrl)
@@ -1541,9 +1535,9 @@ func TestBaseBranchUpdatesBlockUntilFinished(t *testing.T) {
 	ghClient.
 		EXPECT().
 		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
-		DoAndReturn(func(context.Context, string, string, int) (bool, bool, error) {
+		DoAndReturn(func(context.Context, string, string, int) (*githubclt.UpdateBranchResult, error) {
 			atomic.AddInt64(&updateBranchCalls, 1)
-			return true, scheduledReturnVal.Load(), nil
+			return &githubclt.UpdateBranchResult{Changed: true, HeadCommitID: headCommitID, Scheduled: scheduledReturnVal.Load()}, nil
 		}).MinTimes(1)
 
 	mockSuccessfulGithubAddLabelQueueHeadCall(ghClient, prNumber).AnyTimes()

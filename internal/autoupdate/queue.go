@@ -573,7 +573,7 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 
 	logger.Debug("pr is approved")
 
-	branchChanged, err := q.updatePRWithBase(ctx, pr, logger, loggingFields)
+	branchChanged, _, err := q.updatePRWithBase(ctx, pr, logger, loggingFields)
 	if err != nil {
 		// error is logged in q.updatePRIfNeeded
 		return
@@ -681,12 +681,12 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 	}
 }
 
-func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *zap.Logger, loggingFields []zapcore.Field) (changed bool, updateBranchErr error) {
+func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *zap.Logger, loggingFields []zapcore.Field) (changed bool, headCommit string, updateBranchErr error) {
+	var result *githubclt.UpdateBranchResult
 	updateBranchErr = q.retryer.Run(ctx, func(ctx context.Context) error {
 		var err error
-		var scheduled bool
 
-		changed, scheduled, err = q.ghClient.UpdateBranch(
+		result, err = q.ghClient.UpdateBranch(
 			ctx,
 			q.baseBranch.RepositoryOwner,
 			q.baseBranch.Repository,
@@ -696,14 +696,17 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 			return err
 		}
 
-		if changed && scheduled {
+		if result == nil {
+			return errors.New("BUG: updateBranch returned nil result")
+		}
+
+		if result.Scheduled {
 			return goorderr.NewRetryableError(
 				errors.New("branch update was scheduled, retrying until update was done"),
 				time.Now().Add(q.updateBranchPollInterval),
 			)
 		}
-
-		return err
+		return nil
 	}, loggingFields)
 
 	if updateBranchErr != nil {
@@ -720,7 +723,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 					logfields.Event("branch_update_failed"),
 					zap.Error(err),
 				)
-				return false, errors.Join(updateBranchErr, err)
+				return false, "", errors.Join(updateBranchErr, err)
 			}
 
 			logger.Info(
@@ -729,7 +732,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 				logReasonPRClosed,
 			)
 
-			return false, updateBranchErr
+			return false, "", updateBranchErr
 		}
 
 		if errors.Is(updateBranchErr, context.Canceled) {
@@ -738,7 +741,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 				logfields.Event("branch_update_cancelled"),
 			)
 
-			return false, updateBranchErr
+			return false, "", updateBranchErr
 		}
 
 		// use a new context, otherwise it is forwarded for an
@@ -750,7 +753,7 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 				logfields.Event("suspending_pr_updates_failed"),
 				zap.Error(err),
 			)
-			return false, errors.Join(updateBranchErr, err)
+			return false, "", errors.Join(updateBranchErr, err)
 		}
 
 		logger.Info(
@@ -779,10 +782,10 @@ func (q *queue) updatePRWithBase(ctx context.Context, pr *PullRequest, logger *z
 			logger.Error("posting comment to github PR failed", zap.Error(err))
 		}
 
-		return false, errors.Join(updateBranchErr, err)
+		return false, "", errors.Join(updateBranchErr, err)
 	}
 
-	return changed, nil
+	return result.Changed, result.HeadCommitID, nil
 }
 
 // prReadyForMergeStatus runs GitHubClient.ReadyForMergeStatus() and retries if

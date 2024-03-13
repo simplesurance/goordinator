@@ -8,6 +8,8 @@ import (
 	"github.com/simplesurance/goordinator/internal/githubclt"
 )
 
+const headCommitID = "32d4ff96ea72412277bbfd22ff1bab3a5263b415"
+
 // DryGithubClient is a github-client that does not do any changes on github.
 // All operations that could cause a change are simulated and always succeed.
 // All all other operations are forwarded to a wrapped GithubClient.
@@ -23,9 +25,9 @@ func NewDryGithubClient(clt GithubClient, logger *zap.Logger) *DryGithubClient {
 	}
 }
 
-func (c *DryGithubClient) UpdateBranch(context.Context, string, string, int) (bool, bool, error) {
+func (c *DryGithubClient) UpdateBranch(context.Context, string, string, int) (*githubclt.UpdateBranchResult, error) {
 	c.logger.Info("simulated updating of github branch, returning is uptodate")
-	return false, false, nil
+	return &githubclt.UpdateBranchResult{HeadCommitID: headCommitID}, nil
 }
 
 func (c *DryGithubClient) ReadyForMerge(context.Context, string, string, int) (*githubclt.ReadyForMergeStatus, error) {
@@ -34,6 +36,7 @@ func (c *DryGithubClient) ReadyForMerge(context.Context, string, string, int) (*
 	return &githubclt.ReadyForMergeStatus{
 		ReviewDecision: githubclt.ReviewDecisionApproved,
 		CIStatus:       githubclt.CIStatusSuccess,
+		Commit:         headCommitID,
 	}, nil
 }
 

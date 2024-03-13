@@ -113,13 +113,12 @@ func (mr *MockGithubClientMockRecorder) RemoveLabel(ctx, owner, repo, pullReques
 }
 
 // UpdateBranch mocks base method.
-func (m *MockGithubClient) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (bool, bool, error) {
+func (m *MockGithubClient) UpdateBranch(ctx context.Context, owner, repo string, pullRequestNumber int) (*githubclt.UpdateBranchResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateBranch", ctx, owner, repo, pullRequestNumber)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(*githubclt.UpdateBranchResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpdateBranch indicates an expected call of UpdateBranch.
