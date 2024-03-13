@@ -550,12 +550,6 @@ func (q *queue) updatePR(ctx context.Context, pr *PullRequest) {
 		return
 	}
 
-	logger = logger.With(
-		logfields.ReviewDecision(string(status.ReviewDecision)),
-		logfields.CIStatusSummary(string(status.CIStatus)),
-		zap.Any("github.ci_statuses", status.Statuses),
-	)
-
 	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
 		if err := q.Suspend(pr.Number); err != nil {
 			logger.Error(
@@ -812,7 +806,20 @@ func (q *queue) prReadyForMergeStatus(ctx context.Context, pr *PullRequest) (*gi
 			q.baseBranch.Repository,
 			pr.Number,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		q.logger.Debug(
+			"retrieved ready for merge status",
+			append([]zap.Field{
+				logfields.Commit(status.Commit),
+				logfields.ReviewDecision(string(status.ReviewDecision)),
+				logfields.CIStatusSummary(string(status.CIStatus)),
+				zap.Any("github.ci_statuses", status.Statuses)}, loggingFields...)...,
+		)
+
+		return nil
 	}, loggingFields)
 
 	return status, err
@@ -962,13 +969,6 @@ func (q *queue) resumeIfPRMergeStatusPositive(ctx context.Context, logger *zap.L
 	if err != nil {
 		return fmt.Errorf("retrieving ready for merge status failed: %w", err)
 	}
-
-	logger.Debug(
-		"retrieved ready-to-merge-status",
-		logfields.Commit(status.Commit),
-		logfields.ReviewDecision(string(status.ReviewDecision)),
-		logfields.CIStatusSummary(string(status.CIStatus)),
-	)
 
 	if status.ReviewDecision != githubclt.ReviewDecisionApproved {
 		logger.Info("updates for prs are not resumed, reviewdecision is not positive")
