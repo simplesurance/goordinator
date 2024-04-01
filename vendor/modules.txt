@@ -94,14 +94,14 @@ go.uber.org/zap/internal/stacktrace
 go.uber.org/zap/internal/ztest
 go.uber.org/zap/zapcore
 go.uber.org/zap/zaptest
-# golang.org/x/net v0.21.0
+# golang.org/x/net v0.22.0
 ## explicit; go 1.18
 golang.org/x/net/context/ctxhttp
-# golang.org/x/oauth2 v0.17.0
+# golang.org/x/oauth2 v0.18.0
 ## explicit; go 1.18
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sys v0.17.0
+# golang.org/x/sys v0.18.0
 ## explicit; go 1.18
 golang.org/x/sys/unix
 golang.org/x/sys/windows
