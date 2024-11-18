@@ -1,21 +1,27 @@
 linters:
   disable-all: true
   enable:
+    - copyloopvar
     - errcheck
-    - exportloopref
+    - errorlint
+    - gocritic
+    - gofumpt
     - goimports
-    - revive
+    - goprintffuncname
     - gosimple
+    - govet
     - ineffassign
     - misspell
+    - nosprintfhostport
     - prealloc
+    - revive
     - rowserrcheck
     - sqlclosecheck
     - staticcheck
     - typecheck
     - unconvert
     - unused
-    - vet
+    - usestdlibvars
 
 linters-settings:
   goimports:
