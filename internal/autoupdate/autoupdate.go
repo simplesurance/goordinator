@@ -146,7 +146,6 @@ func NewAutoupdater(
 	}
 
 	return &a
-
 }
 
 // branchRefToRef returns ref without a leading refs/heads/ prefix.
@@ -731,6 +730,7 @@ func (a *Autoupdater) processPushEvent(ctx context.Context, logger *zap.Logger, 
 
 	a.ResumeAllForBaseBranch(ctx, bb)
 }
+
 func (a *Autoupdater) processPullRequestReviewEvent(ctx context.Context, logger *zap.Logger, ev *github.PullRequestReviewEvent) {
 	owner := ev.GetRepo().GetOwner().GetLogin()
 	repo := ev.GetRepo().GetName()
@@ -1201,7 +1201,6 @@ func (a *Autoupdater) ChangeBaseBranch(
 
 	if err := a.Enqueue(ctx, newBaseBranch, pr); err != nil {
 		return fmt.Errorf("could not enqueue in queue for new base branch: %w", err)
-
 	}
 
 	return nil

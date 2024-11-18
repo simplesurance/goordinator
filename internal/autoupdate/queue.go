@@ -835,7 +835,8 @@ func (q *queue) prReadyForMergeStatus(ctx context.Context, pr *PullRequest) (*gi
 				logfields.Commit(status.Commit),
 				logfields.ReviewDecision(string(status.ReviewDecision)),
 				logfields.CIStatusSummary(string(status.CIStatus)),
-				zap.Any("github.ci_statuses", status.Statuses)}, loggingFields...)...,
+				zap.Any("github.ci_statuses", status.Statuses),
+			}, loggingFields...)...,
 		)
 
 		return nil
@@ -1065,8 +1066,8 @@ func (q *queue) Stop() {
 // The function returns a Set of branch names for that no PR in the queue could
 // be found.
 func (q *queue) SetPRStaleSinceIfNewerByBranch(branchNames []string, t time.Time) (
-	notFound set.Set[string]) {
-
+	notFound set.Set[string],
+) {
 	branchSet := set.From(branchNames)
 	prs, notFound := q.prsByBranch(branchSet)
 

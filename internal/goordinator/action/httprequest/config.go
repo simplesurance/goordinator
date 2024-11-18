@@ -85,7 +85,6 @@ func NewConfigFromMap(m map[string]any) (*Config, error) {
 		data:     data,
 		logger:   zap.L().Named(loggerName),
 	}, nil
-
 }
 
 // Render runs renderFunc on all configuration options that can contain

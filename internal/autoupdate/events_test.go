@@ -22,6 +22,7 @@ func newBasicPullRequestEvent(prNumber int, branchName, baseBranchName string) *
 		},
 	}
 }
+
 func newBasicPullRequest(prNumber int, baseBranchName, branchName string) *github.PullRequest {
 	return &github.PullRequest{
 		Number: &prNumber,
@@ -71,6 +72,7 @@ func newPullRequestAutomergeEnabledEvent(prNumber int, branchName, baseBranchNam
 
 	return pr
 }
+
 func newPullRequestAutomergeDisabledEvent(prNumber int, branchName, baseBranchName string) *github.PullRequestEvent {
 	pr := newBasicPullRequestEvent(prNumber, branchName, baseBranchName)
 	pr.Action = strPtr("auto_merge_disabled")

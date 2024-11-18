@@ -2,12 +2,11 @@ package autoupdate
 
 import (
 	"embed"
+	"html/template"
 	"io/fs"
 	"net/http"
 
 	_ "embed" // used to embed html templates and static docs
-
-	"html/template"
 
 	"go.uber.org/zap"
 )

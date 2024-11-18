@@ -482,7 +482,7 @@ func newPullRequestSyncHTTPReq() *http.Request {
 	hdrs.Set("X-GitHub-Event", "pull_request")
 
 	return &http.Request{
-		Method: "POST",
+		Method: http.MethodPost,
 		Header: hdrs,
 		Body:   io.NopCloser(strings.NewReader(pullRequestSynchronizeEventPayload)),
 	}

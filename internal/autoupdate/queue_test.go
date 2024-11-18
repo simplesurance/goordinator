@@ -55,10 +55,10 @@ func TestUpdatePRWithBaseReturnsChangedWhenScheduled(t *testing.T) {
 		UpdateBranch(gomock.Any(), gomock.Eq(repoOwner), gomock.Eq(repo), gomock.Any()).
 		DoAndReturn(func(context.Context, string, string, int) (*githubclt.UpdateBranchResult, error) {
 			if updateBranchCalls == 0 {
-				updateBranchCalls = updateBranchCalls + 1
+				updateBranchCalls++
 				return &githubclt.UpdateBranchResult{HeadCommitID: headCommitID, Changed: true, Scheduled: true}, nil
 			}
-			updateBranchCalls = updateBranchCalls + 1
+			updateBranchCalls++
 			return &githubclt.UpdateBranchResult{HeadCommitID: headCommitID, Changed: false, Scheduled: false}, nil
 		}).
 		Times(2)

@@ -23,12 +23,16 @@ import (
 	github_prov "github.com/simplesurance/goordinator/internal/provider/github"
 )
 
-const repo = "repo"
-const repoOwner = "testman"
-const queueHeadLabel = "first"
+const (
+	repo           = "repo"
+	repoOwner      = "testman"
+	queueHeadLabel = "first"
+)
 
-const condCheckInterval = 20 * time.Millisecond
-const condWaitTimeout = 5 * time.Second
+const (
+	condCheckInterval = 20 * time.Millisecond
+	condWaitTimeout   = 5 * time.Second
+)
 
 // mustGetActivePR fetches from the base-branch queue of the autoupdater the
 // pull request with the given pull request number.
@@ -1571,7 +1575,6 @@ func TestBaseBranchUpdatesBlockUntilFinished(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return queue.getExecuting() == nil
 	}, queue.updateBranchPollInterval+2*time.Second, queue.updateBranchPollInterval/2)
-
 }
 
 func TestPRHeadLabelIsAppliedToNextAfterMerge(t *testing.T) {

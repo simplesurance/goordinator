@@ -203,7 +203,6 @@ func mustParseCommandlineParams() {
 	}
 
 	pflag.Parse()
-
 }
 
 func mustParseCfg() *cfg.Config {
@@ -382,7 +381,7 @@ func main() {
 
 	if *args.ShowVersion {
 		fmt.Printf("%s %s\n", appName, Version)
-		os.Exit(0)
+		os.Exit(0) // nolint:gocritic // defer functions won't run
 	}
 
 	config := mustParseCfg()

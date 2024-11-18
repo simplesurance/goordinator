@@ -168,7 +168,6 @@ func (e *EvLoop) scheduleAction(ctx context.Context, event *Event, action action
 			logFieldActionResult("success"),
 		)
 	}()
-
 }
 
 // Stop stops the event loop and waits until all scheduled go-routines

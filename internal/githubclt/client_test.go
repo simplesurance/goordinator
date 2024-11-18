@@ -21,7 +21,7 @@ func TestWrapRetryableErrorsGraphql(t *testing.T) {
 
 	// is the same then in vendor/github.com/shurcooL/graphql/graphql.go do()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(503)
+		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 
 	t.Cleanup(srv.Close)

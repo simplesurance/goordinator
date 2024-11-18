@@ -177,7 +177,7 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 
 	_, _, err = clt.restClt.PullRequests.UpdateBranch(ctx, owner, repo, pullRequestNumber, &github.PullRequestBranchUpdateOptions{ExpectedHeadSHA: &prHEADSHA})
 	if err != nil {
-		if _, ok := err.(*github.AcceptedError); ok {
+		if _, ok := err.(*github.AcceptedError); ok { // nolint:errorlint // errors.As not needed here
 			// It is not clear if the response ensures that the
 			// branch will be updated or if the scheduled operation
 			// can fail.
@@ -334,7 +334,7 @@ func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sor
 }
 
 func (clt *Client) wrapRetryableErrors(err error) error {
-	switch v := err.(type) {
+	switch v := err.(type) { // nolint:errorlint // errors.As not needed here
 	case *github.RateLimitError:
 		clt.logger.Info(
 			"rate limit exceeded",
