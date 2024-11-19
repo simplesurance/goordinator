@@ -1056,41 +1056,6 @@ func (a *Autoupdater) ResumeAllForBaseBranch(_ context.Context, baseBranch *Base
 	}
 }
 
-// SuspendUpdates suspend updates for all pull requests that are queued and
-// their branch name matches one of branchNames.
-// It returns a list of pull requests for which updates were suspended.
-func (a *Autoupdater) SuspendUpdates(
-	_ context.Context,
-	owner string,
-	repo string,
-	branchNames []string,
-) ([]*PullRequest, []error) {
-	var errors []error
-	var updatedPrs []*PullRequest
-
-	a.queuesLock.Lock()
-	defer a.queuesLock.Unlock()
-
-	for baseBranch, q := range a.queues {
-		if baseBranch.Repository != repo || baseBranch.RepositoryOwner != owner {
-			continue
-		}
-		prs := q.ActivePRsByBranch(branchNames)
-		for _, pr := range prs {
-			err := q.Suspend(pr.Number)
-			if err != nil {
-				errors = append(errors, fmt.Errorf(
-					"suspending updates for pr %d, base branch: %q failed: %w",
-					pr.Number, baseBranch, err,
-				))
-			}
-			updatedPrs = append(updatedPrs, pr)
-		}
-	}
-
-	return updatedPrs, errors
-}
-
 // SetPRStaleSinceIfNewerByBranch sets the staleSince timestamp of the PRs for
 // the given branch names to updatdAt, if it is newer then the current
 // staleSince timestamp.
