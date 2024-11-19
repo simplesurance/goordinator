@@ -29,7 +29,7 @@ const appName = "goordinator"
 
 var logger *zap.Logger
 
-// Version is set via and ldflag on compilation
+// Version is set via a ldflag on compilation
 var Version = "unknown"
 
 const EventChannelBufferSize = 1024
