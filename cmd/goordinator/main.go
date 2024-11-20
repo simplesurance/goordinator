@@ -15,9 +15,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/simplesurance/goordinator/internal/autoupdate"
 	"github.com/simplesurance/goordinator/internal/cfg"
 	"github.com/simplesurance/goordinator/internal/githubclt"
 	"github.com/simplesurance/goordinator/internal/goordinator"
@@ -160,10 +157,9 @@ func startHTTPServer(listenAddr string, mux *http.ServeMux) {
 }
 
 type arguments struct {
-	Verbose           *bool
-	ConfigFile        *string
-	ShowVersion       *bool
-	AutoupdaterDryRun *bool
+	Verbose     *bool
+	ConfigFile  *string
+	ShowVersion *bool
 }
 
 var args arguments
@@ -189,11 +185,6 @@ func mustParseCommandlineParams() {
 			false,
 			"print the version and exit",
 		),
-		AutoupdaterDryRun: pflag.Bool(
-			"autoupdater-dry-run",
-			false,
-			"simulate operations that would result in changes",
-		),
 	}
 
 	flag.Usage = func() {
@@ -207,7 +198,7 @@ func mustParseCommandlineParams() {
 
 func mustParseCfg() *cfg.Config {
 	// we use exitOnErr in this function instead of logger.Fatal() because
-	// the logger is not intialized yet
+	// the logger is not initialized yet
 
 	file, err := os.Open(*args.ConfigFile)
 	exitOnErr("could not open configuration files", err)
@@ -217,8 +208,6 @@ func mustParseCfg() *cfg.Config {
 	if err != nil {
 		exitOnErr(fmt.Sprintf("could not load configuration file: %s", *args.ConfigFile), err)
 	}
-
-	config.Autoupdater.Endpoint = normalizeHTTPEndpoint(config.Autoupdater.Endpoint)
 
 	return config
 }
@@ -299,78 +288,6 @@ func hide(in string) string {
 	return "**hidden**"
 }
 
-func normalizeHTTPEndpoint(endpoint string) string {
-	if len(endpoint) != 0 && endpoint[len(endpoint)-1] != '/' {
-		return endpoint + "/"
-	}
-
-	return endpoint
-}
-
-func startPullRequestAutoupdater(config *cfg.Config, githubClient *githubclt.Client, mux *http.ServeMux) (*autoupdate.Autoupdater, chan<- *github.Event) {
-	if !config.Autoupdater.TriggerOnAutoMerge && len(config.Autoupdater.Labels) == 0 {
-		logger.Info(
-			"autoupdater is disabled, trigger_on_auto_merge is false and trigger_labels in config is empty",
-			logfields.Event("autoupdater_disabled"),
-		)
-
-		return nil, nil
-	}
-
-	if len(config.Autoupdater.HeadLabel) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: config file %s: autoupdater.queue_pr_head_label must be provided when autoupdater is enabled", *args.ConfigFile)
-		os.Exit(1)
-	}
-
-	if len(config.GithubAPIToken) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: config file %s: github_api_token must be provided when autoupdater is enabled", *args.ConfigFile)
-		os.Exit(1)
-	}
-
-	if len(config.HTTPGithubWebhookEndpoint) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: config file :%s: github_webhook_endpoint must be provided when autoupdater is enabled", *args.ConfigFile)
-		os.Exit(1)
-	}
-
-	if len(config.Autoupdater.Repositories) == 0 {
-		logger.Info("github pull request updater is disabled, autoupdater.repository config field is empty")
-		return nil, nil
-	}
-
-	repos := make([]autoupdate.Repository, 0, len(config.Autoupdater.Repositories))
-	for _, r := range config.Autoupdater.Repositories {
-		repos = append(repos, autoupdate.Repository{
-			OwnerLogin:     r.Owner,
-			RepositoryName: r.RepositoryName,
-		})
-	}
-
-	ch := make(chan *github.Event, EventChannelBufferSize)
-
-	autoupdater := autoupdate.NewAutoupdater(
-		githubClient,
-		ch,
-		goordinator.NewRetryer(),
-		repos,
-		config.Autoupdater.TriggerOnAutoMerge,
-		config.Autoupdater.Labels,
-		config.Autoupdater.HeadLabel,
-		autoupdate.DryRun(*args.AutoupdaterDryRun),
-	)
-	autoupdater.Start()
-
-	if config.Autoupdater.Endpoint != "" {
-		autoupdater.HTTPService().RegisterHandlers(mux, config.Autoupdater.Endpoint)
-		logger.Info(
-			"registered github pull request autoupdater http endpoint",
-			logfields.Event("autoupdater_http_handler_registered"),
-			zap.String("endpoint", config.Autoupdater.Endpoint),
-		)
-	}
-
-	return autoupdater, ch
-}
-
 func main() {
 	defer panicHandler()
 
@@ -405,11 +322,6 @@ func main() {
 		zap.String("log_format", config.LogFormat),
 		zap.String("log_time_key", config.LogTimeKey),
 		zap.String("log_level", config.LogLevel),
-		zap.String("prometheus_metrics_endpoint", config.PrometheusMetricsEndpoint),
-		zap.Bool("autoupdater.trigger_on_auto_merge", config.Autoupdater.TriggerOnAutoMerge),
-		zap.Strings("autoupdater.labels", config.Autoupdater.Labels),
-		zap.Any("autoupdater.repositories", config.Autoupdater.Repositories),
-		zap.String("autoupdater.http_endpoint", config.Autoupdater.Endpoint),
 		zap.String("rules", rules.String()),
 	)
 
@@ -426,11 +338,6 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	autoupdater, ch := startPullRequestAutoupdater(config, githubClient, mux)
-	if ch != nil {
-		chans = append(chans, ch)
-	}
-
 	if len(rules) > 0 {
 		evLoopchan := make(chan *github.Event, EventChannelBufferSize)
 		chans = append(chans, evLoopchan)
@@ -443,14 +350,8 @@ func main() {
 
 		go evLoop.Start() // todo: implement ordered shutdown, wait for termination
 	} else {
-		logger.Debug("No rules defined, event-loop is not started",
-			logfields.Event("event_loop_not_started"),
-		)
-
-		if autoupdater == nil {
-			fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules and autoupdater triggers are disabled, nothing to do\n", *args.ConfigFile)
-			os.Exit(1)
-		}
+		fmt.Fprintf(os.Stderr, "ERROR: config file %s does not define any rules, nothing to do\n", *args.ConfigFile)
+		os.Exit(1)
 	}
 
 	gh := github.New(
@@ -464,15 +365,6 @@ func main() {
 		logfields.Event("github_http_handler_registered"),
 		zap.String("endpoint", config.HTTPGithubWebhookEndpoint),
 	)
-
-	if config.PrometheusMetricsEndpoint != "" {
-		mux.Handle(config.PrometheusMetricsEndpoint, promhttp.Handler())
-		logger.Info(
-			"registered prometheus metrics http endpoint",
-			logfields.Event("prometheus_http_handler_registered"),
-			zap.String("endpoint", config.PrometheusMetricsEndpoint),
-		)
-	}
 
 	if config.HTTPListenAddr != "" {
 		startHTTPServer(config.HTTPListenAddr, mux)
@@ -493,20 +385,6 @@ func main() {
 			logfields.Event("event_loop_stopping"),
 		)
 	})
-
-	if autoupdater != nil {
-		ctx, cancelFn := context.WithTimeout(context.Background(), 15*time.Minute)
-		if err := autoupdater.InitSync(ctx); err != nil {
-			logger.Error(
-				"autoupdater: initial synchronization failed",
-				logfields.Event("autoupdate_initial_sync_failed"),
-				zap.Error(err),
-			)
-		}
-		cancelFn()
-
-		autoupdater.Start()
-	}
 
 	select {} // TODO: refactor this, allow clean shutdown
 }

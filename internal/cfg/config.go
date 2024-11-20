@@ -7,32 +7,17 @@ import (
 )
 
 type Config struct {
-	HTTPListenAddr            string             `toml:"http_server_listen_addr"`
-	HTTPSListenAddr           string             `toml:"https_server_listen_addr"`
-	HTTPSCertFile             string             `toml:"https_ssl_cert_file"`
-	HTTPSKeyFile              string             `toml:"https_ssl_key_file"`
-	HTTPGithubWebhookEndpoint string             `toml:"github_webhook_endpoint"`
-	GithubWebHookSecret       string             `toml:"github_webhook_secret"`
-	GithubAPIToken            string             `toml:"github_api_token"`
-	PrometheusMetricsEndpoint string             `toml:"prometheus_metrics_endpoint"`
-	LogFormat                 string             `toml:"log_format"`
-	LogTimeKey                string             `toml:"log_time_key"`
-	LogLevel                  string             `toml:"log_level"`
-	Autoupdater               PullRequestUpdater `toml:"autoupdater"`
-	Rules                     []*Rules           `toml:"rule"`
-}
-
-type GithubRepository struct {
-	Owner          string `toml:"owner"`
-	RepositoryName string `toml:"repository"`
-}
-
-type PullRequestUpdater struct {
-	TriggerOnAutoMerge bool               `toml:"trigger_on_auto_merge"`
-	Labels             []string           `toml:"trigger_labels"`
-	HeadLabel          string             `toml:"queue_pr_head_label"`
-	Repositories       []GithubRepository `toml:"repository"`
-	Endpoint           string             `toml:"http_endpoint"`
+	HTTPListenAddr            string   `toml:"http_server_listen_addr"`
+	HTTPSListenAddr           string   `toml:"https_server_listen_addr"`
+	HTTPSCertFile             string   `toml:"https_ssl_cert_file"`
+	HTTPSKeyFile              string   `toml:"https_ssl_key_file"`
+	HTTPGithubWebhookEndpoint string   `toml:"github_webhook_endpoint"`
+	GithubWebHookSecret       string   `toml:"github_webhook_secret"`
+	GithubAPIToken            string   `toml:"github_api_token"`
+	LogFormat                 string   `toml:"log_format"`
+	LogTimeKey                string   `toml:"log_time_key"`
+	LogLevel                  string   `toml:"log_level"`
+	Rules                     []*Rules `toml:"rule"`
 }
 
 type Trigger struct {

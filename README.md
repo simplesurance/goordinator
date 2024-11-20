@@ -10,46 +10,12 @@ It provides 2 functionalities.
 Goordinator listens for GitHub webhook events, runs their JSON payloads
 through a JQ filter query and triggers actions if the filter matches.
 The supported actions are:
-- posting a http-request
-- updating a GitHub branch with its base branch.
+- posting a http-request,
+- updating a GitHub branch with its base branch,
+- removing a GitHub pull request label.
 
 All actions are executed in parallel and retried if they fail until a retry
-timeout expired (default: 2h).
-
-### Serialized Synchronization of GitHub Pull Request with their Base Branch
-
-Autoupdater keeps pull requests (PR) updated with their base branch. \
-Pull requests are added to a per base branch queue, the first PR is labeled is
-kept up to date with its base branch. \
-Updates for the PR branch are suspended when:
-
-- the base-branch can not be merged into the PR branch because of a
-  merge-conflict,
-- a negative GitHub check or commit status for a required check is reported or
-- it became stale, when it is update, approved and no check or status state has
-  been reported for a longer time period.
-
-Updates for it are resumed when:
-- the PR or its base branch changed
-- the PR's check runs and/or statuses  became positive.
-
-Autoupdater is used together with [Githubs auto-merge
-feature](https://docs.github.com/en/github/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)
-or a comparable service to provide a serialized merge-queue.
-The autoupdater serializes updates per base branch, to avoid a race between
-pull requests to get updates the fastest and have a successful CI check first.
-The autoupdater honors the required status checks configured as branch
-protection rules.
-
-Without an external auto-merge service the autoupdater is useless.
-
-#### Required GitHub Setup
-
-Configure your GitHub Repository to:
-
-- Enable auto-merge
-- Require >=1 status checks to pass before merging
-- Require branches to be up to date before merging
+timeout expires (default: 2h).
 
 ## Installation as systemd Service
 
@@ -99,22 +65,6 @@ strings are replaced with concrete values from the event that is processed.
 
 The supported template strings are documented in the
 [example config.toml file](dist/etc/goordinator/config.toml).
-
-## Project Status
-
-The project is an early stage, breaking changes can happen anytime. \
-Test coverage is insufficient, therefore bugs in the *main* branch are likely.
-
-The release binaries are in a more stable state. They are roughly tested and
-used internally.
-
-## Prometheus Metrics
-
-The following [Prometheus](https://prometheus.io/) metrics are served:
-
-- goordinator_autoupdater_queue_operations_total
-- goordinator_autoupdater_processed_github_events_total
-- goordinator_autoupdater_queued_prs_count
 
 ## FAQ
 

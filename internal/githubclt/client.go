@@ -6,13 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/go-github/v59/github"
-	"github.com/shurcooL/githubv4"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 
@@ -30,9 +27,8 @@ var ErrPullRequestIsClosed = errors.New("pull request is closed")
 func New(oauthAPItoken string) *Client {
 	httpClient := newHTTPClient(oauthAPItoken)
 	return &Client{
-		restClt:    github.NewClient(httpClient),
-		graphQLClt: githubv4.NewClient(httpClient),
-		logger:     zap.L().Named(loggerName),
+		restClt: github.NewClient(httpClient),
+		logger:  zap.L().Named(loggerName),
 	}
 }
 
@@ -57,9 +53,14 @@ func newHTTPClient(apiToken string) *http.Client {
 // All methods return a goorderr.RetryableError when an operation can be retried.
 // This can be e.g. the case when the API ratelimit is exceeded.
 type Client struct {
-	restClt    *github.Client
-	graphQLClt *githubv4.Client
-	logger     *zap.Logger
+	restClt *github.Client
+	logger  *zap.Logger
+}
+
+type UpdateBranchResult struct {
+	Changed      bool
+	Scheduled    bool
+	HeadCommitID string
 }
 
 // BranchIsBehindBase returns true if the head reference contains all changes of base.
@@ -74,70 +75,6 @@ func (clt *Client) BranchIsBehindBase(ctx context.Context, owner, repo, base, he
 	}
 
 	return *cmp.BehindBy > 0, nil
-}
-
-// PullRequestIsUptodateWithBase returns true if the pull request is open and
-// contains all changes from it's base branch.
-// Additionally it returns the SHA of the head commit for which the status was
-// checked.
-// If the PR is closed PullRequestIsClosedError is returned.
-func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullRequestNumber int) (isUptodate bool, headSHA string, err error) {
-	pr, _, err := clt.restClt.PullRequests.Get(ctx, owner, repo, pullRequestNumber)
-	if err != nil {
-		return false, "", clt.wrapRetryableErrors(err)
-	}
-
-	if pr.GetState() == "closed" {
-		return false, "", ErrPullRequestIsClosed
-	}
-
-	prHead := pr.GetHead()
-	if prHead == nil {
-		return false, "", errors.New("got pull request object with empty head")
-	}
-
-	prHeadSHA := prHead.GetSHA()
-	if prHeadSHA == "" {
-		return false, "", errors.New("got pull request object with empty head sha")
-	}
-
-	if pr.GetMergeableState() == "behind" {
-		return false, prHeadSHA, nil
-	}
-
-	prBranch := prHead.GetRef()
-	if prBranch == "" {
-		return false, "", errors.New("got pull request object with empty ref field")
-	}
-
-	base := pr.GetBase()
-	if base == nil {
-		return false, "", errors.New("got pull request object with empty base field")
-	}
-
-	baseBranch := base.GetRef()
-	if baseBranch == "" {
-		return false, "", errors.New("got pull request object with empty base ref field")
-	}
-
-	isBehind, err := clt.BranchIsBehindBase(ctx, owner, repo, baseBranch, prHeadSHA)
-	if err != nil {
-		return false, "", fmt.Errorf("evaluating if branch is behind base failed: %w", err)
-	}
-
-	return !isBehind, prHeadSHA, nil
-}
-
-// CreateIssueComment creates a comment in a issue or pull request
-func (clt *Client) CreateIssueComment(ctx context.Context, owner, repo string, issueOrPRNr int, comment string) error {
-	_, _, err := clt.restClt.Issues.CreateComment(ctx, owner, repo, issueOrPRNr, &github.IssueComment{Body: &comment})
-	return clt.wrapRetryableErrors(err)
-}
-
-type UpdateBranchResult struct {
-	Changed      bool
-	Scheduled    bool
-	HeadCommitID string
 }
 
 // UpdateBranch schedules merging the base-branch into a pull request branch.
@@ -213,16 +150,56 @@ func (clt *Client) UpdateBranch(ctx context.Context, owner, repo string, pullReq
 	return &UpdateBranchResult{Changed: true, HeadCommitID: prHEADSHA}, nil
 }
 
-// AddLabel adds a label to Pull-Request or Issue.
-func (clt *Client) AddLabel(ctx context.Context, owner, repo string, pullRequestOrIssueNumber int, label string) error {
-	if label == "" {
-		// by default github removes all labels when none is provided,
-		// we do not need this functionality, as safe guard fail if
-		// because of a bug an empty label value is passed:
-		return errors.New("provided label is empty")
+// PRIsUptodate returns true if the pull request is open and
+// contains all changes from it's base branch.
+// Additionally it returns the SHA of the head commit for which the status was
+// checked.
+// If the PR is closed ErrPullRequestIsClosed is returned.
+func (clt *Client) PRIsUptodate(ctx context.Context, owner, repo string, pullRequestNumber int) (isUptodate bool, headSHA string, err error) {
+	pr, _, err := clt.restClt.PullRequests.Get(ctx, owner, repo, pullRequestNumber)
+	if err != nil {
+		return false, "", clt.wrapRetryableErrors(err)
 	}
-	_, _, err := clt.restClt.Issues.AddLabelsToIssue(ctx, owner, repo, pullRequestOrIssueNumber, []string{label})
-	return clt.wrapRetryableErrors(err)
+
+	if pr.GetState() == "closed" {
+		return false, "", ErrPullRequestIsClosed
+	}
+
+	prHead := pr.GetHead()
+	if prHead == nil {
+		return false, "", errors.New("got pull request object with empty head")
+	}
+
+	prHeadSHA := prHead.GetSHA()
+	if prHeadSHA == "" {
+		return false, "", errors.New("got pull request object with empty head sha")
+	}
+
+	if pr.GetMergeableState() == "behind" {
+		return false, prHeadSHA, nil
+	}
+
+	prBranch := prHead.GetRef()
+	if prBranch == "" {
+		return false, "", errors.New("got pull request object with empty ref field")
+	}
+
+	base := pr.GetBase()
+	if base == nil {
+		return false, "", errors.New("got pull request object with empty base field")
+	}
+
+	baseBranch := base.GetRef()
+	if baseBranch == "" {
+		return false, "", errors.New("got pull request object with empty base ref field")
+	}
+
+	isBehind, err := clt.BranchIsBehindBase(ctx, owner, repo, baseBranch, prHeadSHA)
+	if err != nil {
+		return false, "", fmt.Errorf("evaluating if branch is behind base failed: %w", err)
+	}
+
+	return !isBehind, prHeadSHA, nil
 }
 
 // RemoveLabel removes a label from a Pull-Request or issue.
@@ -251,86 +228,11 @@ func (clt *Client) RemoveLabel(ctx context.Context, owner, repo string, pullRequ
 				return nil
 			}
 
-			return clt.wrapGraphQLRetryableErrors(err)
+			return clt.wrapRetryableErrors(err)
 		}
 	}
 
 	return nil
-}
-
-type PRIterator interface {
-	Next() (*github.PullRequest, error)
-}
-
-type PRIter struct {
-	clt *Client
-
-	ctx   context.Context
-	owner string
-	repo  string
-
-	filterState   string
-	sortOrder     string
-	sortDirection string
-
-	unseen []*github.PullRequest
-
-	nextPage int
-	finished bool
-}
-
-// Next returns the next pullRequest.
-// When the last result was returned a nil PullRequest is returned.
-func (it *PRIter) Next() (*github.PullRequest, error) {
-	if len(it.unseen) > 0 {
-		result := it.unseen[0]
-		it.unseen = it.unseen[1:]
-
-		return result, nil
-	}
-
-	if it.finished {
-		return nil, nil
-	}
-
-	prs, resp, err := it.clt.restClt.PullRequests.List(it.ctx, it.owner, it.repo, &github.PullRequestListOptions{
-		State:     "open",
-		Sort:      it.filterState,
-		Direction: it.sortOrder,
-		ListOptions: github.ListOptions{
-			Page:    it.nextPage,
-			PerPage: 100,
-		},
-	})
-	if err != nil {
-		return nil, it.clt.wrapRetryableErrors(err)
-	}
-
-	if resp.NextPage == 0 || resp.PrevPage+1 == resp.LastPage || len(prs) == 0 {
-		it.finished = true
-	} else {
-		it.nextPage = resp.NextPage
-	}
-
-	it.unseen = prs
-
-	return it.Next()
-}
-
-// ListPullRequests returns an iterator for receiving all pull requests.
-// The parameters state, sort, sortDirection expect the same values then their pendants in the struct github.PullRequestListOptions.
-// all pull requests should be returned.
-func (clt *Client) ListPullRequests(ctx context.Context, owner, repo, state, sort, sortDirection string) PRIterator { // interface is returned to make the method mockable
-	return &PRIter{
-		clt:           clt,
-		ctx:           ctx,
-		owner:         owner,
-		repo:          repo,
-		sortOrder:     sort,
-		sortDirection: sortDirection,
-		filterState:   state,
-		nextPage:      1,
-	}
 }
 
 func (clt *Client) wrapRetryableErrors(err error) error {
@@ -350,32 +252,6 @@ func (clt *Client) wrapRetryableErrors(err error) error {
 		if v.Response.StatusCode >= 500 && v.Response.StatusCode < 600 {
 			return goorderr.NewRetryableAnytimeError(err)
 		}
-	}
-
-	return err
-}
-
-var graphQlHTTPStatusErrRe = regexp.MustCompile(`^non-200 OK status code: ([0-9]+) .*`)
-
-func (clt *Client) wrapGraphQLRetryableErrors(err error) error {
-	matches := graphQlHTTPStatusErrRe.FindStringSubmatch(err.Error())
-	if len(matches) != 2 {
-		return err
-	}
-
-	errcode, atoiErr := strconv.Atoi(matches[1])
-	if atoiErr != nil {
-		clt.logger.Info(
-			"parsing http code from error string failed",
-			zap.Error(atoiErr),
-			zap.String("error_string", err.Error()),
-			zap.String("http_errcode", matches[1]),
-		)
-		return err
-	}
-
-	if errcode >= 500 && errcode < 600 {
-		return goorderr.NewRetryableAnytimeError(err)
 	}
 
 	return err
