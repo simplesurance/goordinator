@@ -5,7 +5,7 @@ go 1.23.3
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/google/go-github/v59 v59.0.0
-	github.com/itchyny/gojq v0.12.16
+	github.com/itchyny/gojq v0.12.17
 	github.com/pelletier/go-toml v1.9.5
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.10.0
