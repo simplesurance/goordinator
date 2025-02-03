@@ -63,6 +63,31 @@ strings are replaced with concrete values from the event that is processed.
 The supported template strings are documented in the
 [example config.toml file](dist/etc/goordinator/config.toml).
 
+
+### Example Rules
+
+#### Run Jenkins Job by Adding a PR Label
+
+```toml
+[[rule]]
+  name = "run-ci-job-on-label"
+  event_source = "github"
+  filter_query = '''
+.repository.name == "repo.example" and
+  .action == "labeled" and .label.name == "ci"
+'''
+
+  [[rule.action]]
+    action = "httprequest"
+    url = "https://jenkins.test/job/ci/buildWithParameters?version={{ .Event.CommitID }}"
+    user = "goordinator"
+    password = "1234"
+
+  [[rule.action]]
+    action = "removelabel"
+    label = "ci"
+```
+
 ## FAQ
 
 #### Github Hook Events did not arrive because the Application was unreachable
