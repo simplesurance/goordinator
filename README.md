@@ -2,20 +2,16 @@
 
 ## Introduction
 
-Goordinator is an event-processor for GitHub events.
-It provides 2 functionalities.
+Goordinator is a configurable event-processor for GitHub events.
+It listens for GitHub webhook events, runs their JSON payloads
+through a query filter (jq) and runs actions when a filter matches. The
+supported actions are:
 
-### Configurable Event-Trigger Loop
-
-Goordinator listens for GitHub webhook events, runs their JSON payloads
-through a JQ filter query and triggers actions if the filter matches.
-The supported actions are:
-- posting a http-request,
+- sending a HTTP-request,
 - updating a GitHub branch with its base branch,
 - removing a GitHub pull request label.
 
-All actions are executed in parallel and retried if they fail until a retry
-timeout expires (default: 2h).
+All actions are executed in parallel and retried on failures.
 
 ## Installation as systemd Service
 
@@ -26,13 +22,14 @@ timeout expires (default: 2h).
    ```sh
    install -o root -g root -m 775 goordinator /usr/local/bin/goordinator
    ```
+
 4. Create a goordinator group and user:
 
    ```sh
    useradd -r goordinator
    ```
 
-4. Copy the configuration files to `/etc`:
+5. Copy the configuration files to `/etc`:
 
    ```sh
    cp -r dist/etc/* /etc/
@@ -40,9 +37,9 @@ timeout expires (default: 2h).
    chown root:goordinator /etc/goordinator/config.toml
    ```
 
-5. Adapt the configuration and define your rules in
+6. Adapt the configuration and define your rules in
    `/etc/goordinator/config.toml`.
-6. Enable the systemd service and start it:
+7. Enable the systemd service and start it:
 
    ```sh
    systemctl daemon-reload
@@ -53,8 +50,8 @@ timeout expires (default: 2h).
 ## Configuration
 
 Goordinator is configured via a `config.toml` file. \
-The path to the configuration file can be defined via `--cfg-file` commandline
-parameter. \
+The path to the configuration file can be defined via the `--cfg-file` command
+line parameter. \
 A documented example configuration file can be found in the repository:
 [dist/etc/goordinator/config.toml](dist/etc/goordinator/config.toml).
 
