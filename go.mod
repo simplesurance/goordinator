@@ -1,6 +1,7 @@
 module github.com/simplesurance/goordinator
 
 go 1.23.5
+toolchain go1.24.1
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -14,7 +15,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.5.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/oauth2 v0.25.0
+	golang.org/x/oauth2 v0.28.0
 )
 
 require (
