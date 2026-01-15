@@ -13,7 +13,7 @@ require (
 	github.com/thecodeteam/goodbye v0.0.0-20170927022442-a83968bda2d3
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.6.0
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.1
 	golang.org/x/oauth2 v0.29.0
 )
 
