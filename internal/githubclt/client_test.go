@@ -2,6 +2,10 @@ package githubclt
 
 import (
 	"bytes"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +16,34 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+func TestNewClientWithAuthTokenDoesNotUseDeprecatedCancelRequest(t *testing.T) {
+	clt := New("test-secret-token")
+
+	httpClient := clt.restClt.Client()
+	assert.Equal(t, DefaultHTTPClientTimeout, httpClient.Timeout)
+
+	type requestCanceler interface {
+		CancelRequest(*http.Request)
+	}
+	_, implementsCancelRequest := httpClient.Transport.(requestCanceler)
+	assert.False(t, implementsCancelRequest, "HTTP transport must not implement deprecated CancelRequest")
+
+	var gotAuthHeader string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuthHeader = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	baseURL, err := url.Parse(srv.URL + "/")
+	require.NoError(t, err)
+	clt.restClt.BaseURL = baseURL
+
+	err = clt.RemoveLabel(context.Background(), "owner", "repo", 1, "label")
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer test-secret-token", gotAuthHeader)
+}
 
 func TestWrapRetryableErrorsDoesNotDuplicateRateLimitField(t *testing.T) {
 	var logBuf bytes.Buffer
