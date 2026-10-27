@@ -142,9 +142,5 @@ func eventlogFields(providerEvent *github.Event, ev *Event) []zap.Field {
 		result = append(result, logfields.PullRequest(ev.PullRequestNr))
 	}
 
-	if ev.Branch != "" {
-		result = append(result, zap.String("github.branch", ev.Branch))
-	}
-
 	return result
 }
