@@ -1,15 +1,18 @@
 package goordinator
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/simplesurance/goordinator/internal/goorderr"
@@ -134,5 +137,43 @@ func TestBackOffIntervalReachesMaxElapsedTime(t *testing.T) {
 			"time between retry %d and %d is %s, expected >=%s",
 			i-1, i, retryTimes[i-1], retryTimes[i], d, minInterval(r),
 		)
+	}
+}
+
+func TestRetryerDoesNotAccumulateLogFields(t *testing.T) {
+	var logBuf bytes.Buffer
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+		zapcore.AddSync(&logBuf),
+		zapcore.DebugLevel,
+	)
+	t.Cleanup(zap.ReplaceGlobals(zap.New(core)))
+
+	r := NewRetryer()
+	r.backoffInitialInterval = 10 * time.Millisecond
+	t.Cleanup(r.Stop)
+
+	var attempts int
+	err := r.Run(context.Background(), func(context.Context) error {
+		attempts++
+		if attempts < 3 {
+			return goorderr.NewRetryableAnytimeError(errors.New("temporary failure"))
+		}
+		return nil
+	}, []zap.Field{zap.String("action", "httprequest")})
+
+	require.NoError(t, err)
+	require.Equal(t, 3, attempts)
+
+	lines := strings.Split(strings.TrimSpace(logBuf.String()), "\n")
+	require.NotEmpty(t, lines)
+
+	for i, line := range lines {
+		if !strings.Contains(line, `"try_count":`) {
+			continue
+		}
+		assert.Equalf(t, 1, strings.Count(line, `"try_count":`), "line %d has duplicate try_count: %s", i, line)
+		assert.Equalf(t, 1, strings.Count(line, `"age":`), "line %d has duplicate age: %s", i, line)
+		assert.LessOrEqualf(t, strings.Count(line, `"error":`), 1, "line %d has duplicate error: %s", i, line)
 	}
 }

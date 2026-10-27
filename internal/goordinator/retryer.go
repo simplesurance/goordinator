@@ -81,9 +81,9 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 			return ctx.Err()
 
 		case <-retryTimer.C:
-			logger = logger.With(zap.Uint("try_count", tryCnt))
+			tryLogger := logger.With(zap.Uint("try_count", tryCnt))
 
-			logger.Debug(
+			tryLogger.Debug(
 				"running action",
 				logfields.Event("action_running"),
 				zap.Duration("age", bo.GetElapsedTime()),
@@ -96,7 +96,7 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 				if errors.As(err, &retryError) {
 					var retryIn time.Duration
 
-					logger = logger.With(
+					tryLogger = tryLogger.With(
 						zap.Duration("age", bo.GetElapsedTime()),
 						zap.Error(err),
 					)
@@ -113,10 +113,10 @@ func (r *Retryer) Run(ctx context.Context, fn func(context.Context) error, logF 
 
 					timerWasActive := retryTimer.Reset(retryIn)
 					if timerWasActive {
-						logger.DPanic("timer was active when reset was called")
+						tryLogger.DPanic("timer was active when reset was called")
 					}
 
-					logger.Info(
+					tryLogger.Info(
 						"action failed, retry scheduled",
 						logfields.Event("action_retry_scheduled"),
 						zap.Duration("retry_in", retryIn),
