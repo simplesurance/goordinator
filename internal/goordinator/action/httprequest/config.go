@@ -125,8 +125,8 @@ func (c *Config) DetailedString() string {
 	var result strings.Builder
 
 	result.WriteString("http-request:\n")
-	result.WriteString(fmt.Sprintf("  url: %s\n", c.url))
-	result.WriteString(fmt.Sprintf("  method: %s\n", c.method))
+	fmt.Fprintf(&result, "  url: %s\n", c.url)
+	fmt.Fprintf(&result, "  method: %s\n", c.method)
 	if c.user != "" {
 		result.WriteString("  user: " + maskedStr + "\n")
 	}
@@ -145,7 +145,7 @@ func (c *Config) DetailedString() string {
 
 	for k := range c.headers {
 		if c.data != "" {
-			result.WriteString(fmt.Sprintf("    %s: %s\n", k, maskedStr))
+			fmt.Fprintf(&result, "    %s: %s\n", k, maskedStr)
 		}
 	}
 
