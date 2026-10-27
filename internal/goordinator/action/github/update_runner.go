@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"go.uber.org/zap"
-
-	"github.com/simplesurance/goordinator/internal/logfields"
 )
 
 type UpdateRunner struct {
@@ -39,9 +37,6 @@ func (r *UpdateRunner) Run(ctx context.Context) error {
 func (r *UpdateRunner) LogFields() []zap.Field {
 	return []zap.Field{
 		zap.String("action", "github.update_base_branch"),
-		logfields.Repository(r.repository),
-		logfields.RepositoryOwner(r.repositoryOwner),
-		logfields.PullRequest(r.pullRequestNumber),
 	}
 }
 

@@ -19,9 +19,7 @@ type RemoveLabelRunner struct {
 func (r *RemoveLabelRunner) LogFields() []zap.Field {
 	return []zap.Field{
 		zap.String("action", "github.remove_label"),
-		logfields.Repository(r.repository),
-		logfields.RepositoryOwner(r.repositoryOwner),
-		logfields.PullRequest(r.pullRequestNumber),
+		logfields.Label(r.label),
 	}
 }
 
