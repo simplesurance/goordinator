@@ -81,7 +81,7 @@ func errString(errs []error) string {
 			result.WriteString("; ")
 		}
 
-		result.WriteString(fmt.Sprintf("error %d: %s", i, err))
+		fmt.Fprintf(&result, "error %d: %s", i, err)
 	}
 
 	return result.String()
@@ -256,14 +256,14 @@ func (r *Rule) String() string {
 func (r *Rule) DetailedString() string {
 	var result strings.Builder
 
-	result.WriteString(fmt.Sprintf("Name: %s\nEventSource: %s\nFilterQuery: %s\n", r.name, r.eventSource, r.filterQuery))
+	fmt.Fprintf(&result, "Name: %s\nEventSource: %s\nFilterQuery: %s\n", r.name, r.eventSource, r.filterQuery)
 
 	for i, action := range r.actions {
 		if i == 0 {
 			result.WriteString("Actions:\n")
 		}
 
-		result.WriteString(fmt.Sprintf("%s\n", stringutils.IndentString(action.DetailedString(), "")))
+		fmt.Fprintf(&result, "%s\n", stringutils.IndentString(action.DetailedString(), ""))
 	}
 
 	return result.String()
