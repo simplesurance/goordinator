@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/go-github/v59/github"
 	"go.uber.org/zap"
-	"golang.org/x/oauth2"
 
 	"github.com/simplesurance/goordinator/internal/goorderr"
 	"github.com/simplesurance/goordinator/internal/logfields"
@@ -25,28 +24,17 @@ var ErrPullRequestIsClosed = errors.New("pull request is closed")
 
 // New returns a new github api client.
 func New(oauthAPItoken string) *Client {
-	httpClient := newHTTPClient(oauthAPItoken)
+	restClt := github.NewClient(&http.Client{
+		Timeout: DefaultHTTPClientTimeout,
+	})
+	if oauthAPItoken != "" {
+		restClt = restClt.WithAuthToken(oauthAPItoken)
+	}
+
 	return &Client{
-		restClt: github.NewClient(httpClient),
+		restClt: restClt,
 		logger:  zap.L().Named(loggerName),
 	}
-}
-
-func newHTTPClient(apiToken string) *http.Client {
-	if apiToken == "" {
-		return &http.Client{
-			Timeout: DefaultHTTPClientTimeout,
-		}
-	}
-
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: apiToken},
-	)
-
-	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = DefaultHTTPClientTimeout
-
-	return tc
 }
 
 // Client is an github API client.
