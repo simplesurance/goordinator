@@ -242,7 +242,6 @@ func (clt *Client) wrapRetryableErrors(err error) error {
 			"rate limit exceeded",
 			logfields.Event("github_api_rate_limit_exceeded"),
 			zap.Int("github_api_rate_limit", v.Rate.Limit),
-			zap.Int("github_api_rate_limit", v.Rate.Limit),
 			zap.Time("github_api_rate_limit_reset_time", v.Rate.Reset.Time),
 		)
 

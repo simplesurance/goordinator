@@ -69,6 +69,14 @@ func TestHTTPHandlerEventParsing(t *testing.T) {
 			assert.Equal(t, tc.expectedCommitID, event.CommitID)
 			assert.Equal(t, tc.expectedRepositoryOwner, event.RepositoryOwner)
 			assert.Equal(t, tc.expectedBaseBranch, event.BaseBranch)
+
+			seenKeys := make(map[string]int, len(event.LogFields))
+			for _, f := range event.LogFields {
+				seenKeys[f.Key]++
+			}
+			for k, count := range seenKeys {
+				assert.Equalf(t, 1, count, "duplicate log field key %q in event.LogFields", k)
+			}
 		})
 	}
 }
